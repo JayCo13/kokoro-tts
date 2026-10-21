@@ -221,7 +221,7 @@ button:hover{background:var(--acc2)}button:disabled{opacity:.5;cursor:wait}
 summary{cursor:pointer;font-size:14px;color:var(--fg)}
 #msg{color:var(--mut);font-size:14px;margin-top:10px;min-height:1em}.cnt{float:right}
 </style></head><body><div class="c">
-<h1>Kokoro TTS</h1><p class="s">Biến văn bản tiếng Việt &amp; tiếng Anh thành giọng nói — chạy hoàn toàn trên máy bạn.</p>
+<h1>Kokoro TTS</h1><p class="s">Biến văn bản tiếng Việt &amp; tiếng Anh thành giọng nói — chạy hoàn toàn trên máy bạn. <span style="opacity:.6;font-size:12px">· __VER__</span></p>
 <div class="card">
 <label>Văn bản <span class="cnt" id="cnt">0 ký tự</span></label>
 <textarea id="t">Hello! This is Kokoro, an open-source voice running right here on your Mac.</textarea>
@@ -273,6 +273,13 @@ $("msg").textContent="Xong sau "+((Date.now()-t0)/1000).toFixed(1)+" giây"+extr
 catch(e){$("msg").textContent="Lỗi: "+e.message}finally{clearInterval(poll);b.disabled=false}};
 t.onkeydown=e=>{if((e.metaKey||e.ctrlKey)&&e.key==="Enter")b.click()};
 </script></body></html>""".replace("__OPTS__", opts)
+
+def _version():
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if os.path.isdir(os.path.join(root, ".git")): return "bản phát triển"
+    try: return "phiên bản " + open(os.path.join(root, ".version")).read().strip()[:7]
+    except Exception: return "phiên bản cài đặt"
+HTML = HTML.replace("__VER__", _version())
 
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
