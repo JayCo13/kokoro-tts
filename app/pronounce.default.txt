@@ -1,0 +1,10 @@
+# Tu dien phat am cho giong tieng Viet
+# Moi dong: TU = cach doc   (khong phan biet hoa/thuong, chi thay nguyen tu)
+# Meo:
+#   - Phien am IPA giua hai dau / (chuan nhat):                 IELTS = /ˈaɪɛlts/
+#   - Viet lai theo kieu tieng Anh:                            IELTS = eye elts
+#   - Doc tung chu cai kieu tieng Anh:                         SAT = <en>S A T</en>
+#   - Hoac viet theo kieu tieng Viet:                           Zalo = da lô
+IELTS = /ˈaɪ ˈɛws/
+SAT = <en>S A T</en>
+GRE = <en>G R E</en>

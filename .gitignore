@@ -1,0 +1,8 @@
+.venv/
+.version
+__pycache__/
+*.pyc
+.DS_Store
+app/pronounce.txt
+Day len GitHub.command
+*.log

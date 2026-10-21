@@ -1,0 +1,40 @@
+KOKORO TTS – Giọng đọc AI tiếng Việt & tiếng Anh (chạy offline trên máy)
+=========================================================================
+
+YÊU CẦU
+- macOS (chip Apple M1/M2/M3/M4) hoặc Windows 10/11 (64-bit)
+- Khoảng 5 GB ổ cứng trống
+- Có Internet ở lần cài đặt đầu tiên (tải khoảng 3 GB). Sau đó dùng offline hoàn toàn.
+
+CÀI ĐẶT (chỉ làm 1 lần)
+  macOS:
+    1. Giải nén file zip, đặt thư mục vừa giải nén ở đâu tuỳ ý (ví dụ Documents).
+    2. Chuột phải vào "1. Cai dat (Mac).command" → Open → Open
+       (lần đầu macOS sẽ hỏi vì file tải từ máy khác — chọn Open là được).
+    3. Đợi chạy xong (10–30 phút tuỳ tốc độ mạng), thấy chữ XONG là được.
+  Windows:
+    1. Giải nén file zip (chuột phải → Extract All).
+    2. Bấm đúp "1. Cai dat (Windows).bat".
+       Nếu Windows hiện "Windows protected your PC" → More info → Run anyway.
+    3. Đợi chạy xong, thấy chữ XONG là được.
+
+SỬ DỤNG
+  macOS:   bấm đúp "2. Mo Kokoro TTS (Mac).command"
+  Windows: bấm đúp "2. Mo Kokoro TTS (Windows).bat"
+  → Trình duyệt tự mở trang http://localhost:7860
+  → Giữ cửa sổ đen (Terminal / Command Prompt) mở trong lúc dùng; đóng nó để tắt.
+
+TÍNH NĂNG
+- 25 giọng tiếng Việt (Bắc/Trung/Nam), 24 giọng tiếng Anh + 6 giọng kể chuyện trinh thám
+- Bấm vào thẻ giọng để nghe thử trước
+- Chỉnh tốc độ, tâm trạng (giọng Việt), nút 🎲 đổi kiểu đọc
+- Biểu cảm trong văn bản (giọng Việt): [cười]  [thở dài]  [hắng giọng]
+- 📖 Từ điển phát âm: sửa từ tiếng Anh bị đọc sai, ví dụ  IELTS = /ˈaɪ ˈɛws/
+- 🔍 Kiểm tra kỹ: tự nghe lại từng đoạn và đọc lại đoạn bị lỗi
+
+GHI CHÚ
+- Lần đầu chọn giọng Việt mất khoảng 15–30 giây để nạp mô hình.
+- Trên Windows không có card NVIDIA, bước "Kiểm tra kỹ" chậm hơn Mac; có thể tắt ô này nếu cần nhanh.
+- Ứng dụng TỰ CẬP NHẬT từ GitHub mỗi lần mở (cần mạng; không có mạng thì bỏ qua).
+- Cài lại / sửa lỗi: chạy lại file "1. Cai dat ..." (an toàn, không mất dữ liệu).
+- Từ điển phát âm lưu ở app/pronounce.txt — chép file này sang máy khác để dùng chung.
