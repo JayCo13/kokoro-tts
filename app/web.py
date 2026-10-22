@@ -167,42 +167,18 @@ def _install_ipa_hook():
     vt.phonemize_text_with_emotions = hooked
 
 PROGRESS = {"text": ""}
-EN_AUTO = {"Nam": "am_michael", "Nữ": "af_heart"}     # giong ban xu mac dinh theo gioi tinh giong Viet
-
-def _kokoro_48k(text, en_voice):
-    import soxr
-    p = spec(en_voice)
-    with _lock:
-        chunks = [a for _, _, a in pipe(p["lang"])(text, voice=p["blend"], speed=p["speed"])]
-    w = np.concatenate([np.asarray(c, dtype=np.float32) for c in chunks]) if chunks else np.zeros(0, np.float32)
-    return soxr.resample(w, 24000, 48000).astype(np.float32)
-
-def synth(text, voice, speed=1.0, mood="natural", seed=1, check=False, report=None, native_en=True, en_voice="auto"):
+def synth(text, voice, speed=1.0, mood="natural", seed=1, check=False, report=None):
     if voice in VI_VOICES:
-        import entag, longform, mixed
+        text = apply_pron(text)
+        import entag; text = entag.tag_english(text, load_en_map())   # cum tieng Anh -> <en>..</en> de doc kieu Anh
         m = MOODS.get(mood, MOODS["natural"])
         eng = vi_engine()
-        en_map = load_en_map()
-        segs = mixed.split_segments(text) if native_en else [("vi", text)]
-        if en_voice not in ALL_VOICES or en_voice.startswith("vi_"): en_voice = EN_AUTO[VI_VOICES[voice]["g"]]
-        parts, tot = [], {"chunks": 0, "regenerated": 0, "checked": False}
         with _vi_lock:
-            for si, (lang, seg) in enumerate(segs):
-                tag = f"Phần {si + 1}/{len(segs)} · " if len(segs) > 1 else ""
-                if lang == "en":
-                    PROGRESS["text"] = f"{tag}Giọng bản xứ đọc câu tiếng Anh…"
-                    parts.append(("en", seg, _kokoro_48k(seg, en_voice))); continue
-                seg_t = entag.tag_english(apply_pron(seg), en_map)   # tu Anh le con lai -> <en>..</en>
-                def prog(i, n, what, tag=tag): PROGRESS["text"] = f"{tag}Đang {what} đoạn {i + 1}/{n}…"
-                rpt = {}
-                w = longform.synth_long(eng, seg_t, VI_VOICES[voice]["name"], temperature=m["temp"], seed=int(seed) + si,
-                                        check=check, progress=prog, report=rpt)
-                for k in ("chunks", "regenerated"): tot[k] += rpt.get(k) or 0
-                tot["checked"] = tot["checked"] or bool(rpt.get("checked"))
-                parts.append(("vi", seg, w))
+            import longform
+            def prog(i, n, what): PROGRESS["text"] = f"Đang {what} đoạn {i + 1}/{n}…"
+            audio = longform.synth_long(eng, text, VI_VOICES[voice]["name"], temperature=m["temp"], seed=int(seed),
+                                        check=check, progress=prog, report=report)
             PROGRESS["text"] = ""
-        if report is not None: report.update(tot, english=sum(1 for p_ in parts if p_[0] == "en"))
-        audio = parts[0][2] if len(parts) == 1 else mixed.join(parts)
         audio = stretch(audio, 48000, speed * m["speed"], m["pitch"])
         buf = io.BytesIO(); sf.write(buf, np.asarray(audio, dtype=np.float32), 48000, format="WAV"); return buf.getvalue()
     p = spec(voice); r = 2 ** (p["pitch"] / 12)
@@ -273,8 +249,6 @@ summary{cursor:pointer;font-size:14px;color:var(--fg)}
 <textarea id="dict" style="min-height:140px;font:13px/1.5 ui-monospace,Menlo,monospace"></textarea>
 <button type="button" id="dsave" style="margin-top:8px;width:auto;padding:8px 16px;font-size:14px">💾 Lưu từ điển</button> <span id="dmsg" class="hint"></span>
 </details>
-<div id="enrow" style="display:none;margin-top:12px"><label class="hint" style="cursor:pointer"><input type="checkbox" id="nen" checked> 🇬🇧 <b>Câu tiếng Anh đọc bằng giọng bản xứ</b>: tự tách câu/cụm tiếng Anh cho giọng người bản xứ đọc rồi ghép lại (từ tiếng Anh lẻ như "deadline" vẫn do giọng Việt đọc)</label>
-<select id="env" style="margin-top:6px;max-width:360px"><option value="auto">Tự động (nam: Michael · nữ: Heart)</option><option value="af_heart">Heart — Mỹ, nữ</option><option value="af_bella">Bella — Mỹ, nữ</option><option value="af_nicole">Nicole — Mỹ, nữ</option><option value="af_sarah">Sarah — Mỹ, nữ</option><option value="af_sky">Sky — Mỹ, nữ</option><option value="af_nova">Nova — Mỹ, nữ</option><option value="af_aoede">Aoede — Mỹ, nữ</option><option value="af_kore">Kore — Mỹ, nữ</option><option value="am_michael">Michael — Mỹ, nam</option><option value="am_fenrir">Fenrir — Mỹ, nam</option><option value="am_puck">Puck — Mỹ, nam</option><option value="am_adam">Adam — Mỹ, nam</option><option value="am_echo">Echo — Mỹ, nam</option><option value="am_eric">Eric — Mỹ, nam</option><option value="am_liam">Liam — Mỹ, nam</option><option value="am_onyx">Onyx — Mỹ, nam</option><option value="bf_emma">Emma — Anh, nữ</option><option value="bf_isabella">Isabella — Anh, nữ</option><option value="bf_alice">Alice — Anh, nữ</option><option value="bf_lily">Lily — Anh, nữ</option><option value="bm_george">George — Anh, nam</option><option value="bm_fable">Fable — Anh, nam</option><option value="bm_lewis">Lewis — Anh, nam</option><option value="bm_daniel">Daniel — Anh, nam</option></select></div>
 <label id="chkrow" class="hint" style="display:none;margin-top:12px;cursor:pointer"><input type="checkbox" id="chk" checked> 🔍 <b>Kiểm tra kỹ</b>: nghe lại từng đoạn bằng PhoWhisper, đoạn nào đọc lỗi/đọc lướt thì tự đọc lại (chậm hơn một chút)</label>
 <div id="moodrow" style="display:none;margin-top:14px"><label>Tâm trạng (giọng Việt)</label><div class="chips"><button type="button" class="chip mood" data-m="natural">😊 Tự nhiên</button><button type="button" class="chip mood" data-m="lively">🎉 Sôi nổi, vui tươi</button><button type="button" class="chip mood" data-m="calm">🌙 Trầm lắng, nhẹ nhàng</button><button type="button" class="chip mood" data-m="serious">📰 Nghiêm túc, đều giọng</button><button type="button" class="chip mood" data-m="mystery">🕯️ Hồi hộp, bí ẩn</button><button type="button" class="chip mood" data-m="sad">🌧️ Buồn, chậm rãi</button></div></div>
 <label style="margin-top:16px">Giọng <span class="cnt">bấm để nghe thử · đang chọn: <b id="vn">af_heart</b></span></label>
@@ -295,7 +269,7 @@ moods.forEach(x=>x.onclick=()=>selm(x.dataset.m));selm(mood);
 fetch("/dict").then(r=>r.text()).then(x=>$("dict").value=x);
 $("dsave").onclick=async()=>{const r=await fetch("/dict",{method:"POST",headers:{"Content-Type":"text/plain; charset=utf-8"},body:$("dict").value});$("dmsg").textContent=r.ok?"Đã lưu "+(await r.text())+" từ ✓":"Lỗi khi lưu"};
 const pv=new Audio(),chips=[...document.querySelectorAll(".chip:not(.mood)")];
-function sel(v){if(!chips.some(c=>c.dataset.v===v))v="af_heart";voice=v;const c0=chips.find(c=>c.dataset.v===v);$("vn").textContent=c0?c0.dataset.n:v;chips.forEach(c=>c.classList.toggle("sel",c.dataset.v===v));try{localStorage.setItem("voice",v)}catch(e){}const vi=v.startsWith("vi_");$("hint").style.display=vi?"block":"none";$("moodrow").style.display=vi?"block":"none";$("chkrow").style.display=vi?"block":"none";$("enrow").style.display=vi?"block":"none";$("dictbox").style.display=vi?"block":"none";if(vi&&t.value===EN_T){t.value=VI_T;upd()}else if(!vi&&t.value===VI_T){t.value=EN_T;upd()}}
+function sel(v){if(!chips.some(c=>c.dataset.v===v))v="af_heart";voice=v;const c0=chips.find(c=>c.dataset.v===v);$("vn").textContent=c0?c0.dataset.n:v;chips.forEach(c=>c.classList.toggle("sel",c.dataset.v===v));try{localStorage.setItem("voice",v)}catch(e){}const vi=v.startsWith("vi_");$("hint").style.display=vi?"block":"none";$("moodrow").style.display=vi?"block":"none";$("chkrow").style.display=vi?"block":"none";$("dictbox").style.display=vi?"block":"none";if(vi&&t.value===EN_T){t.value=VI_T;upd()}else if(!vi&&t.value===VI_T){t.value=EN_T;upd()}}
 sel(voice);
 pv.onended=pv.onpause=()=>chips.forEach(c=>c.classList.remove("playing"));
 chips.forEach(c=>c.onclick=()=>{sel(c.dataset.v);$("a").pause();pv.pause();
@@ -305,15 +279,14 @@ chips.forEach(c=>c.onclick=()=>{sel(c.dataset.v);$("a").pause();pv.pause();
  pv.play().catch(()=>{});});
 let seed=1;try{seed=+localStorage.getItem("seed")||1}catch(e){}$("sd").textContent=seed;
 $("rr").onclick=()=>{seed=1+Math.floor(Math.random()*99999);$("sd").textContent=seed;try{localStorage.setItem("seed",seed)}catch(e){}b.click()};
-try{$("chk").checked=localStorage.getItem("check")!=="0";$("nen").checked=localStorage.getItem("nen")!=="0";$("env").value=localStorage.getItem("env")||"auto"}catch(e){}
-$("nen").onchange=()=>{try{localStorage.setItem("nen",$("nen").checked?"1":"0")}catch(e){}};$("env").onchange=()=>{try{localStorage.setItem("env",$("env").value)}catch(e){}};
+try{$("chk").checked=localStorage.getItem("check")!=="0"}catch(e){}
 $("chk").onchange=()=>{try{localStorage.setItem("check",$("chk").checked?"1":"0")}catch(e){}};
 b.onclick=async()=>{if(!t.value.trim())return;b.disabled=true;$("msg").textContent="Đang tạo giọng nói…";const t0=Date.now();
 const poll=setInterval(async()=>{try{const p=await (await fetch("/progress")).json();if(p.text)$("msg").textContent=p.text+" ("+((Date.now()-t0)/1000).toFixed(0)+" giây)"}catch(e){}},1000);
-try{const r=await fetch("/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:t.value,voice:voice,mood:mood,speed:+s.value,seed:seed,check:$("chk").checked,native_en:$("nen").checked,en_voice:$("env").value})});
+try{const r=await fetch("/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:t.value,voice:voice,mood:mood,speed:+s.value,seed:seed,check:$("chk").checked})});
 if(!r.ok)throw new Error(await r.text());const u=URL.createObjectURL(await r.blob());
 pv.pause();$("a").src=u;$("dl").href=u;$("dl").download=voice+".wav";$("out").style.display="block";$("a").play();
-let extra="";try{const rp=JSON.parse(r.headers.get("X-Report")||"{}");if(rp.english){extra+=" · "+rp.english+" câu tiếng Anh đọc bằng giọng bản xứ"}if(rp.chunks){extra+=" · "+rp.chunks+" đoạn"+(rp.checked?", đã kiểm tra, đọc lại "+rp.regenerated+" đoạn lỗi":"")}}catch(e){}
+let extra="";try{const rp=JSON.parse(r.headers.get("X-Report")||"{}");if(rp.chunks){extra=" · "+rp.chunks+" đoạn"+(rp.checked?", đã kiểm tra, đọc lại "+rp.regenerated+" đoạn lỗi":"")}}catch(e){}
 $("msg").textContent="Xong sau "+((Date.now()-t0)/1000).toFixed(1)+" giây"+extra;}
 catch(e){$("msg").textContent="Lỗi: "+e.message}finally{clearInterval(poll);b.disabled=false}};
 t.onkeydown=e=>{if((e.metaKey||e.ctrlKey)&&e.key==="Enter")b.click()};
@@ -354,10 +327,9 @@ class H(BaseHTTPRequestHandler):
             d = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             voice = d.get("voice", "af_heart"); text = d["text"].strip()
             rpt = {}
-            body = synth(text, voice, float(d.get("speed", 1)), d.get("mood", "natural"), d.get("seed", 1), bool(d.get("check", True)), rpt,
-                         bool(d.get("native_en", True)), d.get("en_voice", "auto"))
+            body = synth(text, voice, float(d.get("speed", 1)), d.get("mood", "natural"), d.get("seed", 1), bool(d.get("check", True)), rpt)
             self.send_response(200); self.send_header("Content-Type", "audio/wav"); self.send_header("Content-Length", str(len(body)))
-            self.send_header("X-Report", json.dumps({k: rpt.get(k) for k in ("chunks", "checked", "regenerated", "english")}))
+            self.send_header("X-Report", json.dumps({k: rpt.get(k) for k in ("chunks", "checked", "regenerated")}))
             self.end_headers(); self.wfile.write(body)
         except Exception as e:
             self._send(500, str(e).encode(), "text/plain; charset=utf-8")
