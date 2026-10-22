@@ -8,3 +8,7 @@
 IELTS = /ˈaɪ ˈɛws/
 SAT = <en>S A T</en>
 GRE = <en>G R E</en>
+
+# Chi ap dung trong cau/cum tieng Anh (khong dung den tu tieng Viet trung chinh ta):
+en:do = đu
+en:no = nô

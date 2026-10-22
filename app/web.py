@@ -113,11 +113,24 @@ def load_pron():
             line = line.strip()
             if not line or line.startswith("#") or "=" not in line: continue
             k, v = (x.strip() for x in line.split("=", 1))
+            if k.lower().startswith("en:"): continue          # luat chi dung trong cum tieng Anh -> load_en_map()
             if v.startswith("/") and v.endswith("/") and len(v) > 2:
                 v = " " + _ipa_marker(v[1:-1].strip()) + " "
             if k and v: rules.append((re.compile(r"(?<!\w)" + re.escape(k) + r"(?!\w)", re.I), v))
     except FileNotFoundError: pass
     return rules
+def load_en_map():
+    """Dong 'en:TU = cach doc': chi ap dung khi TU nam trong cum tieng Anh (vd 'en:do = đu' khong dung den 'do đó')."""
+    m = {}
+    try:
+        for line in open(PRON_FILE, encoding="utf-8"):
+            line = line.strip()
+            if not line.lower().startswith("en:") or "=" not in line: continue
+            k, v = (x.strip() for x in line[3:].split("=", 1))
+            if v.startswith("/") and v.endswith("/") and len(v) > 2: v = _ipa_marker(v[1:-1].strip())
+            if k and v: m[k.lower()] = v
+    except FileNotFoundError: pass
+    return m
 def apply_pron(text):
     for rx, v in load_pron(): text = rx.sub(lambda _m: v, text)
     return re.sub(r"  +", " ", text)
@@ -153,6 +166,7 @@ PROGRESS = {"text": ""}
 def synth(text, voice, speed=1.0, mood="natural", seed=1, check=False, report=None):
     if voice in VI_VOICES:
         text = apply_pron(text)
+        import entag; text = entag.tag_english(text, load_en_map())   # cum tieng Anh -> <en>..</en> de doc kieu Anh
         m = MOODS.get(mood, MOODS["natural"])
         eng = vi_engine()
         with _vi_lock:
@@ -227,7 +241,7 @@ summary{cursor:pointer;font-size:14px;color:var(--fg)}
 <textarea id="t">Hello! This is Kokoro, an open-source voice running right here on your Mac.</textarea>
 <div id="hint" class="hint" style="display:none">Giọng Việt: có thể chèn <code>[cười]</code> <code>[thở dài]</code> <code>[hắng giọng]</code> vào văn bản.</div>
 <details id="dictbox" style="display:none;margin-top:10px"><summary>📖 Từ điển phát âm (sửa từ tiếng Anh bị đọc sai)</summary>
-<p class="hint">Mỗi dòng: <code>TỪ = cách đọc</code>. Ví dụ <code>IELTS = /ˈaɪɛlts/</code> (phiên âm IPA giữa hai dấu /, chuẩn nhất), <code>IELTS = eye elts</code> (viết lại kiểu tiếng Anh), <code>SAT = &lt;en&gt;S A T&lt;/en&gt;</code> (đánh vần tiếng Anh), hoặc <code>Zalo = da lô</code> (viết kiểu Việt). Dòng bắt đầu bằng # là ghi chú.</p>
+<p class="hint">Mỗi dòng: <code>TỪ = cách đọc</code>. Ví dụ <code>IELTS = /ˈaɪɛlts/</code> (phiên âm IPA giữa hai dấu /, chuẩn nhất), <code>IELTS = eye elts</code> (viết lại kiểu tiếng Anh), <code>SAT = &lt;en&gt;S A T&lt;/en&gt;</code> (đánh vần tiếng Anh), hoặc <code>Zalo = da lô</code> (viết kiểu Việt). Thêm <code>en:</code> ở đầu để chỉ sửa khi từ nằm trong câu tiếng Anh, ví dụ <code>en:do = đu</code> (không ảnh hưởng chữ "do" tiếng Việt). Dòng bắt đầu bằng # là ghi chú.</p>
 <textarea id="dict" style="min-height:140px;font:13px/1.5 ui-monospace,Menlo,monospace"></textarea>
 <button type="button" id="dsave" style="margin-top:8px;width:auto;padding:8px 16px;font-size:14px">💾 Lưu từ điển</button> <span id="dmsg" class="hint"></span>
 </details>

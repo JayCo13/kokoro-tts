@@ -19,7 +19,7 @@ EN_OK = 0.5        # ti le tu tieng Anh PhoWhisper nghe ra dung chinh ta
 import re as _re
 def english_words(chunk):
     """Tu tieng Anh trong doan (khong tinh tu da thay bang IPA / <en>..</en>)."""
-    t = _re.sub(r"<en>.*?</en>|zqxipa[a-z]+|<\|emotion_\d+\|>", " ", chunk.lower())
+    t = _re.sub(r"</?en>|zqxipa[a-z]+|<\|emotion_\d+\|>", " ", chunk.lower())
     return [w for w in _re.findall(r"[a-z]{3,}", t) if not checker.is_vietnamese_word(w)]
 
 def voiced_seconds(wav, sr=SR, win=0.02):
