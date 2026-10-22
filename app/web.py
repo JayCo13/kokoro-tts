@@ -106,10 +106,17 @@ def _ipa_of(tag):
     i = 0
     for ch in tag.lower(): i = i * 26 + (ord(ch) - 97)
     return _IPA[i] if i < len(_IPA) else ""
+def _pron_lines():
+    """Tu dien mac dinh (cap nhat theo ban moi) + tu dien rieng cua may nay (uu tien, doc sau)."""
+    lines = []
+    for f in (_PRON_DEFAULT, PRON_FILE):
+        try: lines += open(f, encoding="utf-8").read().splitlines()
+        except FileNotFoundError: pass
+    return lines
 def load_pron():
     rules = []
-    try:
-        for line in open(PRON_FILE, encoding="utf-8"):
+    for line in _pron_lines():
+        if True:
             line = line.strip()
             if not line or line.startswith("#") or "=" not in line: continue
             k, v = (x.strip() for x in line.split("=", 1))
@@ -117,19 +124,16 @@ def load_pron():
             if v.startswith("/") and v.endswith("/") and len(v) > 2:
                 v = " " + _ipa_marker(v[1:-1].strip()) + " "
             if k and v: rules.append((re.compile(r"(?<!\w)" + re.escape(k) + r"(?!\w)", re.I), v))
-    except FileNotFoundError: pass
     return rules
 def load_en_map():
     """Dong 'en:TU = cach doc': chi ap dung khi TU nam trong cum tieng Anh (vd 'en:do = đu' khong dung den 'do đó')."""
     m = {}
-    try:
-        for line in open(PRON_FILE, encoding="utf-8"):
-            line = line.strip()
-            if not line.lower().startswith("en:") or "=" not in line: continue
-            k, v = (x.strip() for x in line[3:].split("=", 1))
-            if v.startswith("/") and v.endswith("/") and len(v) > 2: v = _ipa_marker(v[1:-1].strip())
-            if k and v: m[k.lower()] = v
-    except FileNotFoundError: pass
+    for line in _pron_lines():
+        line = line.strip()
+        if not line.lower().startswith("en:") or "=" not in line: continue
+        k, v = (x.strip() for x in line[3:].split("=", 1))
+        if v.startswith("/") and v.endswith("/") and len(v) > 2: v = _ipa_marker(v[1:-1].strip())
+        if k and v: m[k.lower()] = v
     return m
 def apply_pron(text):
     for rx, v in load_pron(): text = rx.sub(lambda _m: v, text)
