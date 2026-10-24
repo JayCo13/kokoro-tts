@@ -32,7 +32,7 @@ def _kind(tok):
     if "'" in low or not _VN_SYL.match(low): return "en"         # khong the la am tiet tieng Viet
     return "amb"                                                 # khong dau, co the la tieng Viet
 
-def _tag_clause(s, en_map):
+def _tag_clause(s, en_map, single_only=False):
     toks = [(m.start(), m.end(), m.group(), _kind(m.group())) for m in _TOKEN.finditer(s)]
     spans, cur = [], []
     for t in toks:
@@ -53,7 +53,7 @@ def _tag_clause(s, en_map):
             keep = sp[0][3] == "en_fn" and (w[0].isupper() or w.isupper()) and (len(toks) == 1 or not first)
         if not keep: continue
         a, b = sp[0][0], sp[-1][1]
-        out.append(s[last:a]); out.append(_render(s, sp, en_map)); last = b
+        out.append(s[last:a]); out.append(_render(s, sp, en_map if (len(sp) == 1 or not single_only) else None)); last = b
     out.append(s[last:])
     return "".join(out)
 
@@ -71,16 +71,16 @@ def _render(s, sp, en_map):
     flush()
     return " ".join(parts)
 
-def tag_english(text, en_map=None):
+def tag_english(text, en_map=None, single_only=False):
     res, pos = [], 0
     for m in _PROTECT.finditer(text):
-        res.append(_tag_plain(text[pos:m.start()], en_map)); res.append(m.group()); pos = m.end()
-    res.append(_tag_plain(text[pos:], en_map))
+        res.append(_tag_plain(text[pos:m.start()], en_map, single_only)); res.append(m.group()); pos = m.end()
+    res.append(_tag_plain(text[pos:], en_map, single_only))
     return "".join(res)
 
-def _tag_plain(s, en_map=None):
+def _tag_plain(s, en_map=None, single_only=False):
     res, pos = [], 0
     for m in _CLAUSE.finditer(s):
-        res.append(_tag_clause(s[pos:m.start()], en_map)); res.append(m.group()); pos = m.end()
-    res.append(_tag_clause(s[pos:], en_map))
+        res.append(_tag_clause(s[pos:m.start()], en_map, single_only)); res.append(m.group()); pos = m.end()
+    res.append(_tag_clause(s[pos:], en_map, single_only))
     return "".join(res)

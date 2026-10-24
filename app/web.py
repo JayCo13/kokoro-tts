@@ -174,6 +174,9 @@ def _synth_omni(text, voice, speed, mood, report):
     def make_ref(t):                                   # mau giong: VieNeu doc 1 cau thuan Viet
         return synth(t, voice, 1.0, "natural", 1, True)
     def prog(msg): PROGRESS["text"] = msg
+    # Tu tieng Anh dung le (vd "No", "Yes") de bi doc kieu Viet -> ap dung dong 'en:' trong tu dien (no = nô...)
+    import entag
+    text = re.sub(r"</?en>", "", entag.tag_english(text, load_en_map(), single_only=True))
     with _omni_lock:
         audio, n = omni.synth(text, voice, make_ref, speed=1.0, progress=prog)
         PROGRESS["text"] = ""
