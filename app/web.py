@@ -218,70 +218,154 @@ def pipe(lang):
         _pipes[lang] = KPipeline(lang_code=lang, repo_id="hexgrad/Kokoro-82M")
     return _pipes[lang]
 
-def chip(v, label, small):
-    return f'<button type="button" class="chip" data-v="{v}" data-n="{label}"><span class="pl">▶</span>{label}<small>{small}</small></button>'
+def chip(v, label, small, q=""):
+    return (f'<button type="button" class="chip vrow" data-v="{v}" data-n="{label}" data-q="{(label + " " + small + " " + q).lower()}">'
+            f'<span class="pl" aria-hidden="true">▶</span><span class="vname">{label}</span><small>{small}</small></button>')
 def vi_chip(k):
     d = VI_VOICES[k]
-    return chip(k, ("⭐ " if d["pick"] else "") + d["name"], f'{d["r"]} · {d["st"]}')
-opts = (''.join(f'<div class="grp"><div class="gl">🇻🇳 Tiếng Việt – {g}</div><div class="chips">'
-                + "".join(vi_chip(k) for k, d in VI_VOICES.items() if d["g"] == g) + "</div></div>" for g in ("Nam", "Nữ"))
-        + '<div class="grp"><div class="gl">🕵️ Trinh thám · Nam trầm ấm</div><div class="chips">'
-        + "".join(chip(k, p["name"], p["desc"]) for k, p in PRESETS.items()) + "</div></div>"
-        + "".join(f'<div class="grp"><div class="gl">{g}</div><div class="chips">'
-                  + "".join(chip(v, vname(v), v) for v in vs) + "</div></div>" for g, vs in VOICES.items()))
+    return chip(k, ("⭐ " if d["pick"] else "") + d["name"], f'{d["g"]} · {d["r"]} · {d["st"]}', d["name"])
+def _grp(title, inner):
+    return f'<div class="grp"><h3 class="gl">{title}</h3><div class="vlist">{inner}</div></div>'
+opts = ('<div class="tabp" data-tab="vi">'
+        + "".join(_grp(f"Giọng {g.lower()}", "".join(vi_chip(k) for k, d in VI_VOICES.items() if d["g"] == g)) for g in ("Nam", "Nữ"))
+        + '</div><div class="tabp" data-tab="en" hidden>'
+        + "".join(_grp(g, "".join(chip(v, vname(v), v) for v in vs)) for g, vs in VOICES.items())
+        + '</div><div class="tabp" data-tab="story" hidden>'
+        + _grp("Giọng nam trầm cho truyện trinh thám", "".join(chip(k, p["name"], p["desc"]) for k, p in PRESETS.items()))
+        + '</div>')
 
 HTML = """<!doctype html><html lang="vi"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Giọng đọc AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#f6f5f2;--card:#fff;--fg:#1d1d1f;--mut:#6e6e73;--line:#e2e0da;--acc:#c2410c;--acc2:#ea580c}
-@media (prefers-color-scheme:dark){:root{--bg:#141414;--card:#1e1e1e;--fg:#f2f2f2;--mut:#9a9a9a;--line:#333;--acc:#fb923c;--acc2:#fdba74}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;display:flex;justify-content:center;padding:40px 16px}
-.c{width:100%;max-width:640px}h1{font-size:28px;margin:0 0 4px;letter-spacing:-.02em}p.s{color:var(--mut);margin:0 0 24px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px}
-textarea{width:100%;min-height:180px;resize:vertical;border:1px solid var(--line);border-radius:10px;padding:12px;font:inherit;background:transparent;color:inherit}
-textarea:focus,select:focus{outline:2px solid var(--acc);outline-offset:1px}
-.row{display:flex;gap:16px;flex-wrap:wrap;margin:16px 0;align-items:end}.row>div{flex:1;min-width:180px}
-label{display:block;font-size:13px;color:var(--mut);margin-bottom:6px}
-select{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:10px;font:inherit;background:var(--card);color:inherit}
-input[type=range]{width:100%;accent-color:var(--acc)}
-button{width:100%;padding:12px;border:0;border-radius:10px;background:var(--acc);color:#fff;font:600 16px inherit;cursor:pointer}
-button:hover{background:var(--acc2)}button:disabled{opacity:.5;cursor:wait}
-#out{margin-top:16px;display:none}audio{width:100%}#out a{color:var(--acc);font-size:14px}
-.grp{margin-bottom:10px}.gl{font-size:12px;color:var(--mut);margin:0 0 6px;text-transform:uppercase;letter-spacing:.04em}
+:root{--bg:#e9eeec;--panel:#f8faf9;--ink:#18242b;--mut:#5b6b70;--line:#cbd5d2;--soft:#dfe7e4;--acc:#0d7a68;--acc-ink:#fff;--rec:#c93c32;
+ --font:"Be Vietnam Pro",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+@media (prefers-color-scheme:dark){:root{--bg:#10181c;--panel:#172126;--ink:#e2ece9;--mut:#8fa3a6;--line:#2a3a40;--soft:#1f2c31;--acc:#3cc4a8;--acc-ink:#062a24;--rec:#ff6b5e}}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--font)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.app{display:grid;grid-template-columns:minmax(0,1fr) 400px;height:100vh;height:100dvh}
+/* ---- kich ban (trai) ---- */
+.script{display:flex;flex-direction:column;min-height:0;padding:20px 28px 0}
+.top{display:flex;align-items:baseline;gap:12px;margin-bottom:14px}
+.top h1{font-size:17px;font-weight:700;margin:0;letter-spacing:-.01em}
+.top .ver{font-size:12px;color:var(--mut)}
+.top .tagline{margin-left:auto;font-size:13px;color:var(--mut)}
+.sheet{flex:1;min-height:0;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+#t{flex:1;min-height:0;width:100%;resize:none;border:0;background:transparent;padding:26px 30px;font-size:19px;line-height:1.75;max-width:none}
+#t:focus{outline:none}.sheet:focus-within{border-color:var(--acc)}
+.tools{display:flex;align-items:center;gap:8px;padding:10px 16px;border-top:1px solid var(--line);font-size:13px;color:var(--mut);flex-wrap:wrap}
+.tools .cnt{margin-left:auto}
+.tag{border:1px solid var(--line);background:transparent;border-radius:6px;padding:3px 9px;font-size:13px;cursor:pointer}
+.tag:hover{border-color:var(--acc);color:var(--acc)}
+#hint{display:flex;align-items:center;gap:6px}
+/* thanh dieu khien */
+.transport{display:grid;grid-template-columns:auto auto 1fr;align-items:center;gap:12px;padding:14px 0 18px}
+#b{background:var(--acc);color:var(--acc-ink);border:0;border-radius:12px;padding:13px 26px;font-weight:600;font-size:16px;cursor:pointer;white-space:nowrap}
+#b:hover{filter:brightness(1.08)}#b:disabled{opacity:.6;cursor:wait}
+#rr{background:transparent;border:1px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer;white-space:nowrap}
+#rr:hover{border-color:var(--acc)}
+.status{min-width:0}
+#msg{font-size:14px;color:var(--mut);min-height:1.5em;display:flex;align-items:center;gap:8px}
+#msg.busy::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--rec);flex:none;animation:rec 1s ease-in-out infinite alternate}
+@keyframes rec{to{opacity:.25}}
+#seedrow{font-size:12px;color:var(--mut)}
+#out{display:none;grid-column:1/-1;align-items:center;gap:12px}
+#out audio{flex:1;min-width:0;height:40px}
+#dl{color:var(--acc);font-size:14px;font-weight:500;white-space:nowrap;text-decoration:none}#dl:hover{text-decoration:underline}
+/* ---- giong & cai dat (phai) ---- */
+.side{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.side-head{padding:20px 20px 12px;border-bottom:1px solid var(--line)}
+.side-head h2{font-size:15px;font-weight:600;margin:0 0 2px}
+.cur{font-size:13px;color:var(--mut);margin:0 0 12px}.cur b{color:var(--ink)}
+.tabs{display:flex;gap:4px;background:var(--soft);padding:3px;border-radius:10px}
+.tabs button{flex:1;border:0;background:transparent;border-radius:8px;padding:7px 4px;font-size:13px;font-weight:500;cursor:pointer;color:var(--mut)}
+.tabs button[aria-selected=true]{background:var(--panel);color:var(--ink);box-shadow:0 1px 2px rgba(24,36,43,.12)}
+#q{margin-top:10px;width:100%;border:1px solid var(--line);border-radius:9px;padding:8px 11px;background:transparent;font-size:14px}
+.side-body{flex:1;min-height:0;overflow:auto;padding:6px 12px 16px}
+.grp{margin:12px 0 4px}.gl{font-size:12px;font-weight:600;color:var(--mut);margin:0 8px 6px}
+.vlist{display:flex;flex-direction:column}
+.vrow{display:grid;grid-template-columns:22px 1fr;column-gap:8px;align-items:center;text-align:left;width:100%;border:0;background:transparent;border-radius:9px;padding:7px 8px;cursor:pointer}
+.vrow:hover{background:var(--soft)}
+.vrow .pl{grid-row:1/3;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:9px;border:1px solid var(--line);color:var(--mut)}
+.vrow .vname{font-weight:500;font-size:14px}.vrow small{grid-column:2;font-size:12px;color:var(--mut)}
+.vrow.sel{background:color-mix(in srgb,var(--acc) 13%,transparent)}.vrow.sel .pl{background:var(--acc);border-color:var(--acc);color:var(--acc-ink)}
+.vrow.playing .pl{animation:rec .6s infinite alternate}.vrow.loading{opacity:.6;cursor:wait}
+.vrow[hidden]{display:none}
+.settings{display:grid;grid-template-columns:auto minmax(160px,220px) minmax(0,1fr) auto;gap:10px 22px;align-items:start;padding:14px 4px 4px}
+.set{min-width:0}
+.dictwrap{border-top:1px solid var(--line);padding:10px 20px 14px;max-height:55%;overflow:auto}
+.set>label,.set .lbl{display:flex;justify-content:space-between;gap:8px;font-size:13px;font-weight:600;margin-bottom:8px}
+.set .lbl b{font-weight:500;color:var(--mut)}
+input[type=range]{width:100%;accent-color:var(--acc)}input[type=range]:disabled{opacity:.35}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
-.chip{width:auto;display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--fg);font:500 14px inherit;cursor:pointer}
-.chip:hover{background:transparent;border-color:var(--acc)}.chip small{color:var(--mut);font-size:11px;font-weight:400}
-.chip .pl{font-size:10px;color:var(--mut)}.chip.sel{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 14%,transparent)}
-.chip.sel .pl{color:var(--acc)}.chip.playing .pl{animation:p .8s infinite alternate}@keyframes p{to{opacity:.2}}
+.chip.mood,.chip.eng{border:1px solid var(--line);background:transparent;border-radius:999px;padding:5px 11px;font-size:13px;cursor:pointer;display:inline-flex;gap:6px;align-items:baseline}
+.chip.eng small{font-size:11px;color:var(--mut)}
+.chip.mood:hover,.chip.eng:hover{border-color:var(--acc)}
+.chip.mood.sel,.chip.eng.sel{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 13%,transparent)}
 .chip:disabled{opacity:.45;cursor:not-allowed}
-.chip.loading{opacity:.6;cursor:wait}
-.hint{font-size:13px;color:var(--mut);margin-top:6px}.hint code{font-size:12px}input[type=range]:disabled{opacity:.35}
-summary{cursor:pointer;font-size:14px;color:var(--fg)}
-#msg{color:var(--mut);font-size:14px;margin-top:10px;min-height:1em}.cnt{float:right}
-</style></head><body><div class="c">
-<h1>Kokoro TTS</h1><p class="s">Biến văn bản tiếng Việt &amp; tiếng Anh thành giọng nói — chạy hoàn toàn trên máy bạn. <span style="opacity:.6;font-size:12px">· __VER__</span></p>
-<div class="card">
-<label>Văn bản <span class="cnt" id="cnt">0 ký tự</span></label>
-<textarea id="t">Hello! This is Kokoro, an open-source voice running right here on your Mac.</textarea>
-<div id="hint" class="hint" style="display:none">Giọng Việt: có thể chèn <code>[cười]</code> <code>[thở dài]</code> <code>[hắng giọng]</code> vào văn bản.</div>
-<details id="dictbox" style="display:none;margin-top:10px"><summary>📖 Từ điển phát âm (sửa từ tiếng Anh bị đọc sai)</summary>
-<p class="hint">Mỗi dòng: <code>TỪ = cách đọc</code>. Ví dụ <code>IELTS = /ˈaɪɛlts/</code> (phiên âm IPA giữa hai dấu /, chuẩn nhất), <code>IELTS = eye elts</code> (viết lại kiểu tiếng Anh), <code>SAT = &lt;en&gt;S A T&lt;/en&gt;</code> (đánh vần tiếng Anh), hoặc <code>Zalo = da lô</code> (viết kiểu Việt). Thêm <code>en:</code> ở đầu để chỉ sửa khi từ nằm trong câu tiếng Anh, ví dụ <code>en:do = đu</code> (không ảnh hưởng chữ "do" tiếng Việt). Dòng bắt đầu bằng # là ghi chú.</p>
-<textarea id="dict" style="min-height:140px;font:13px/1.5 ui-monospace,Menlo,monospace"></textarea>
-<button type="button" id="dsave" style="margin-top:8px;width:auto;padding:8px 16px;font-size:14px">💾 Lưu từ điển</button> <span id="dmsg" class="hint"></span>
-</details>
-<div id="engrow" style="display:none;margin-top:12px"><label>Bộ đọc (giọng Việt)</label><div class="chips">
-<button type="button" class="chip eng" data-e="vieneu">⚡ VieNeu<small>nhanh</small></button>
-<button type="button" class="chip eng" data-e="omni" __OMNI_DIS__>🌏 Song ngữ – OmniVoice<small>tiếng Anh chuẩn, chậm hơn ~5 lần</small></button></div>
-<div class="hint" id="enghint">__OMNI_HINT__</div></div>
-<label id="chkrow" class="hint" style="display:none;margin-top:12px;cursor:pointer"><input type="checkbox" id="chk" checked> 🔍 <b>Kiểm tra kỹ</b>: nghe lại từng đoạn bằng PhoWhisper, đoạn nào đọc lỗi/đọc lướt thì tự đọc lại (chậm hơn một chút)</label>
-<div id="moodrow" style="display:none;margin-top:14px"><label>Tâm trạng (giọng Việt)</label><div class="chips"><button type="button" class="chip mood" data-m="natural">😊 Tự nhiên</button><button type="button" class="chip mood" data-m="lively">🎉 Sôi nổi, vui tươi</button><button type="button" class="chip mood" data-m="calm">🌙 Trầm lắng, nhẹ nhàng</button><button type="button" class="chip mood" data-m="serious">📰 Nghiêm túc, đều giọng</button><button type="button" class="chip mood" data-m="mystery">🕯️ Hồi hộp, bí ẩn</button><button type="button" class="chip mood" data-m="sad">🌧️ Buồn, chậm rãi</button></div></div>
-<label style="margin-top:16px">Giọng <span class="cnt">bấm để nghe thử · đang chọn: <b id="vn">af_heart</b></span></label>
-<div id="voices">__OPTS__</div>
-<div class="row"><div><label>Tốc độ: <b id="sv">1.0×</b></label><input id="s" type="range" min="0.5" max="1.8" step="0.05" value="1"></div></div>
-<div style="display:flex;gap:8px"><button id="b" style="flex:1">▶ Đọc</button><button id="rr" type="button" title="Đọc lại cùng văn bản theo một kiểu khác" style="width:auto;padding:12px 14px;background:transparent;color:var(--fg);border:1px solid var(--line)">🎲 Kiểu khác</button></div>
-<div id="seedrow" class="hint">Kiểu đọc #<b id="sd">1</b> — giữ nguyên số này thì lần sau đọc y hệt. Nghe chưa ưng thì bấm 🎲.</div><div id="msg"></div>
-<div id="out"><audio id="a" controls></audio><a id="dl" download="kokoro.wav">⬇ Tải file .wav</a></div>
-</div></div>
+.hint{font-size:12px;color:var(--mut);margin-top:6px;max-width:46ch}.hint code{font-size:12px}
+.check{display:flex;gap:8px;align-items:flex-start;font-size:13px;cursor:pointer}.check input{margin-top:3px;accent-color:var(--acc)}
+details summary{cursor:pointer;font-size:13px;font-weight:600}
+#dict{width:100%;min-height:150px;margin-top:8px;border:1px solid var(--line);border-radius:9px;padding:9px;background:transparent;font:12.5px/1.55 ui-monospace,Menlo,monospace}
+#dsave{margin-top:8px;border:1px solid var(--acc);color:var(--acc);background:transparent;border-radius:9px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer}
+/* ---- man hinh nho ---- */
+@media (max-width:900px){
+ .app{display:block;height:auto}
+ .script{padding:14px 14px 0}.top .tagline{display:none}
+ .sheet{height:52vh}
+ #t{padding:16px 18px;font-size:17px}
+ .transport{position:sticky;bottom:0;background:var(--bg);grid-template-columns:1fr auto;padding:10px 0 12px;z-index:2;border-top:1px solid var(--line)}
+ .status{grid-column:1/-1;order:3}
+ .side{border-left:0;border-top:1px solid var(--line);margin-top:8px}
+ .side-body{max-height:none;overflow:visible}.settings{grid-template-columns:1fr 1fr}#moodrow,#chkrow{grid-column:1/-1}.dictwrap{max-height:none}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style></head><body>
+<div class="app">
+<main class="script">
+ <div class="top"><h1>Kokoro TTS</h1><span class="ver">__VER__</span><span class="tagline">Chạy hoàn toàn trên máy bạn</span></div>
+ <div class="sheet">
+  <textarea id="t" aria-label="Văn bản cần đọc" placeholder="Dán hoặc gõ văn bản cần đọc vào đây…">Hello! This is Kokoro, an open-source voice running right here on your Mac.</textarea>
+  <div class="tools">
+   <span id="hint" style="display:none">Chèn biểu cảm: <button type="button" class="tag" data-ins="[cười]">[cười]</button><button type="button" class="tag" data-ins="[thở dài]">[thở dài]</button><button type="button" class="tag" data-ins="[hắng giọng]">[hắng giọng]</button></span>
+   <span class="cnt" id="cnt">0 ký tự</span>
+  </div>
+ </div>
+ <div class="settings" aria-label="Cài đặt đọc">
+  <div class="set" id="engrow" style="display:none"><div class="lbl">Bộ đọc</div><div class="chips">
+   <button type="button" class="chip eng" data-e="vieneu">⚡ VieNeu<small>nhanh</small></button>
+   <button type="button" class="chip eng" data-e="omni" __OMNI_DIS__>🌏 Song ngữ<small>tiếng Anh chuẩn, chậm hơn</small></button></div>
+   <div class="hint" id="enghint">__OMNI_HINT__</div></div>
+  <div class="set"><label for="s">Tốc độ <b id="sv">1.0×</b></label><input id="s" type="range" min="0.5" max="1.8" step="0.05" value="1"></div>
+  <div class="set" id="moodrow" style="display:none"><div class="lbl">Tâm trạng</div><div class="chips"><button type="button" class="chip mood" data-m="natural">😊 Tự nhiên</button><button type="button" class="chip mood" data-m="lively">🎉 Sôi nổi</button><button type="button" class="chip mood" data-m="calm">🌙 Trầm lắng</button><button type="button" class="chip mood" data-m="serious">📰 Nghiêm túc</button><button type="button" class="chip mood" data-m="mystery">🕯️ Hồi hộp</button><button type="button" class="chip mood" data-m="sad">🌧️ Buồn</button></div></div>
+  <div class="set" id="chkrow" style="display:none"><label class="check"><input type="checkbox" id="chk" checked><span><b>Kiểm tra kỹ</b><br><span class="hint">Nghe lại từng đoạn, đoạn nào đọc lỗi hoặc đọc lướt thì tự đọc lại.</span></span></label></div>
+ </div>
+ <div class="transport">
+  <button id="b" title="⌘/Ctrl + Enter">▶ Đọc</button>
+  <button id="rr" type="button" title="Đọc lại cùng văn bản theo kiểu khác">🎲 Kiểu khác</button>
+  <div class="status"><div id="msg" aria-live="polite"></div><div id="seedrow">Kiểu đọc #<b id="sd">1</b>. Giữ số này thì lần sau đọc y hệt.</div></div>
+  <div id="out"><audio id="a" controls></audio><a id="dl" download="kokoro.wav">Tải file .wav</a></div>
+ </div>
+</main>
+<aside class="side" aria-label="Giọng đọc và cài đặt">
+ <div class="side-head">
+  <h2>Giọng đọc</h2>
+  <p class="cur">Đang chọn <b id="vn">af_heart</b>. Bấm vào giọng để nghe thử.</p>
+  <div class="tabs" role="tablist"><button role="tab" data-t="vi" aria-selected="true">Tiếng Việt</button><button role="tab" data-t="en" aria-selected="false">Tiếng Anh</button><button role="tab" data-t="story" aria-selected="false">Kể chuyện</button></div>
+  <input id="q" type="search" placeholder="Tìm giọng: tên, Bắc, nữ, kể chuyện…" aria-label="Tìm giọng">
+ </div>
+ <div class="side-body" id="voices">__OPTS__</div>
+  <details class="dictwrap" id="dictbox" style="display:none"><summary>📖 Từ điển phát âm</summary>
+   <p class="hint">Mỗi dòng <code>TỪ = cách đọc</code>, ví dụ <code>IELTS = /ˈaɪɛlts/</code> (IPA), <code>SAT = &lt;en&gt;S A T&lt;/en&gt;</code>, <code>Zalo = da lô</code>. Thêm <code>en:</code> để chỉ sửa trong câu tiếng Anh, ví dụ <code>en:do = đu</code>. Dòng bắt đầu bằng # là ghi chú.</p>
+   <textarea id="dict" spellcheck="false"></textarea>
+   <button type="button" id="dsave">Lưu từ điển</button> <span id="dmsg" class="hint"></span>
+  </details>
+</aside>
+</div>
 <script>
 var engine="vieneu";
 const $=id=>document.getElementById(id),t=$("t"),b=$("b"),s=$("s");
@@ -292,34 +376,46 @@ let mood="natural";try{mood=localStorage.getItem("mood")||mood}catch(e){}
 const moods=[...document.querySelectorAll(".mood")];function selm(m){mood=m;moods.forEach(x=>x.classList.toggle("sel",x.dataset.m===m));try{localStorage.setItem("mood",m)}catch(e){}}
 moods.forEach(x=>x.onclick=()=>selm(x.dataset.m));selm(mood);
 fetch("/dict").then(r=>r.text()).then(x=>$("dict").value=x);
-$("dsave").onclick=async()=>{const r=await fetch("/dict",{method:"POST",headers:{"Content-Type":"text/plain; charset=utf-8"},body:$("dict").value});$("dmsg").textContent=r.ok?"Đã lưu "+(await r.text())+" từ ✓":"Lỗi khi lưu"};
+$("dsave").onclick=async()=>{const r=await fetch("/dict",{method:"POST",headers:{"Content-Type":"text/plain; charset=utf-8"},body:$("dict").value});$("dmsg").textContent=r.ok?"Đã lưu "+(await r.text())+" từ":"Lưu không được, thử lại"};
 const pv=new Audio(),chips=[...document.querySelectorAll(".chip:not(.mood):not(.eng)")];
-function sel(v){if(!chips.some(c=>c.dataset.v===v))v="af_heart";voice=v;const c0=chips.find(c=>c.dataset.v===v);$("vn").textContent=c0?c0.dataset.n:v;chips.forEach(c=>c.classList.toggle("sel",c.dataset.v===v));try{localStorage.setItem("voice",v)}catch(e){}const vi=v.startsWith("vi_");$("hint").style.display=vi?"block":"none";$("moodrow").style.display=vi?"block":"none";$("engrow").style.display=vi?"block":"none";$("chkrow").style.display=vi&&engine!=="omni"?"block":"none";$("dictbox").style.display=vi?"block":"none";if(vi&&t.value===EN_T){t.value=VI_T;upd()}else if(!vi&&t.value===VI_T){t.value=EN_T;upd()}}
-sel(voice);
+/* tab + tim kiem giong */
+const tabs=[...document.querySelectorAll(".tabs button")],panes=[...document.querySelectorAll(".tabp")];
+function showTab(k){tabs.forEach(x=>x.setAttribute("aria-selected",x.dataset.t===k));panes.forEach(p=>p.hidden=p.dataset.tab!==k&&!$("q").value.trim());try{localStorage.setItem("tab",k)}catch(e){}}
+tabs.forEach(x=>x.onclick=()=>{$("q").value="";filt();showTab(x.dataset.t)});
+function filt(){const q=$("q").value.trim().toLowerCase();chips.forEach(c=>c.hidden=!!q&&!c.dataset.q.includes(q));
+ document.querySelectorAll(".grp").forEach(g=>g.hidden=![...g.querySelectorAll(".vrow")].some(c=>!c.hidden));
+ if(q)panes.forEach(p=>p.hidden=false);else{const cur=tabs.find(x=>x.getAttribute("aria-selected")==="true");showTab(cur?cur.dataset.t:"vi")}}
+$("q").oninput=filt;
+function tabOf(v){return v.startsWith("vi_")?"vi":v.startsWith("x_")?"story":"en"}
+function sel(v){if(!chips.some(c=>c.dataset.v===v))v="af_heart";voice=v;const c0=chips.find(c=>c.dataset.v===v);$("vn").textContent=c0?c0.dataset.n:v;chips.forEach(c=>c.classList.toggle("sel",c.dataset.v===v));try{localStorage.setItem("voice",v)}catch(e){}const vi=v.startsWith("vi_");$("hint").style.display=vi?"flex":"none";$("moodrow").style.display=vi?"block":"none";$("engrow").style.display=vi?"block":"none";$("chkrow").style.display=vi&&engine!=="omni"?"block":"none";$("dictbox").style.display=vi&&engine!=="omni"?"block":"none";if(vi&&t.value===EN_T){t.value=VI_T;upd()}else if(!vi&&t.value===VI_T){t.value=EN_T;upd()}}
+sel(voice);showTab(tabOf(voice));
 pv.onended=pv.onpause=()=>chips.forEach(c=>c.classList.remove("playing"));
 chips.forEach(c=>c.onclick=()=>{sel(c.dataset.v);$("a").pause();pv.pause();
  c.classList.add("loading");pv.src="/preview/"+c.dataset.v;
  pv.oncanplay=()=>{c.classList.remove("loading");c.classList.add("playing")};
  pv.onerror=()=>{c.classList.remove("loading");$("msg").textContent="Không phát được bản nghe thử"};
  pv.play().catch(()=>{});});
+/* chen bieu cam tai con tro */
+document.querySelectorAll(".tag").forEach(x=>x.onclick=()=>{const a=t.selectionStart,z=t.selectionEnd,ins=" "+x.dataset.ins+" ";t.setRangeText(ins,a,z,"end");t.focus();upd()});
 let seed=1;try{seed=+localStorage.getItem("seed")||1}catch(e){}$("sd").textContent=seed;
 $("rr").onclick=()=>{seed=1+Math.floor(Math.random()*99999);$("sd").textContent=seed;try{localStorage.setItem("seed",seed)}catch(e){}b.click()};
 try{$("chk").checked=localStorage.getItem("check")!=="0"}catch(e){}
 try{engine=localStorage.getItem("engine")||"vieneu"}catch(e){}
 const engs=[...document.querySelectorAll(".eng")];
-function sele(e){const b=engs.find(x=>x.dataset.e===e);if(!b||b.disabled)e="vieneu";engine=e;engs.forEach(x=>x.classList.toggle("sel",x.dataset.e===e));try{localStorage.setItem("engine",e)}catch(_){}
+function sele(e){const bb=engs.find(x=>x.dataset.e===e);if(!bb||bb.disabled)e="vieneu";engine=e;engs.forEach(x=>x.classList.toggle("sel",x.dataset.e===e));try{localStorage.setItem("engine",e)}catch(_){}
  const vi=voice.startsWith("vi_");$("chkrow").style.display=vi&&e!=="omni"?"block":"none";$("dictbox").style.display=vi&&e!=="omni"?"block":"none"}
 engs.forEach(x=>x.onclick=()=>sele(x.dataset.e));sele(engine);
 $("chk").onchange=()=>{try{localStorage.setItem("check",$("chk").checked?"1":"0")}catch(e){}};
-b.onclick=async()=>{if(!t.value.trim())return;b.disabled=true;$("msg").textContent="Đang tạo giọng nói…";const t0=Date.now();
+b.onclick=async()=>{if(!t.value.trim()){$("msg").textContent="Gõ hoặc dán văn bản vào ô bên trái trước đã.";t.focus();return}
+b.disabled=true;$("msg").classList.add("busy");$("msg").textContent="Đang tạo giọng nói…";const t0=Date.now();
 const poll=setInterval(async()=>{try{const p=await (await fetch("/progress")).json();if(p.text)$("msg").textContent=p.text+" ("+((Date.now()-t0)/1000).toFixed(0)+" giây)"}catch(e){}},1000);
 try{const r=await fetch("/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:t.value,voice:voice,mood:mood,speed:+s.value,seed:seed,check:$("chk").checked,engine:engine})});
 if(!r.ok)throw new Error(await r.text());const u=URL.createObjectURL(await r.blob());
-pv.pause();$("a").src=u;$("dl").href=u;$("dl").download=voice+".wav";$("out").style.display="block";$("a").play();
-let extra="";try{const rp=JSON.parse(r.headers.get("X-Report")||"{}");if(rp.engine==="omni"){extra=" · song ngữ OmniVoice, "+rp.chunks+" đoạn"}else if(rp.chunks){extra=" · "+rp.chunks+" đoạn"+(rp.checked?", đã kiểm tra, đọc lại "+rp.regenerated+" đoạn lỗi":"")}}catch(e){}
+pv.pause();$("a").src=u;$("dl").href=u;$("dl").download=voice+".wav";$("out").style.display="flex";$("a").play();
+let extra="";try{const rp=JSON.parse(r.headers.get("X-Report")||"{}");if(rp.engine==="omni"){extra=", song ngữ, "+rp.chunks+" đoạn"}else if(rp.chunks){extra=", "+rp.chunks+" đoạn"+(rp.checked?", đọc lại "+rp.regenerated+" đoạn lỗi":"")}}catch(e){}
 $("msg").textContent="Xong sau "+((Date.now()-t0)/1000).toFixed(1)+" giây"+extra;}
-catch(e){$("msg").textContent="Lỗi: "+e.message}finally{clearInterval(poll);b.disabled=false}};
-t.onkeydown=e=>{if((e.metaKey||e.ctrlKey)&&e.key==="Enter")b.click()};
+catch(e){$("msg").textContent="Tạo giọng không được: "+e.message}finally{clearInterval(poll);$("msg").classList.remove("busy");b.disabled=false}};
+document.addEventListener("keydown",e=>{if((e.metaKey||e.ctrlKey)&&e.key==="Enter"){e.preventDefault();b.click()}});
 </script></body></html>""".replace("__OPTS__", opts)
 
 def _version():
@@ -333,7 +429,7 @@ def _omni_ok():
         import omni; return omni.available()
     except Exception: return False
 HTML = HTML.replace("__OMNI_DIS__", "" if _omni_ok() else "disabled").replace("__OMNI_HINT__",
-    "Song ngữ: giọng Việt bạn chọn được dùng làm mẫu, đọc cả câu tiếng Anh bằng cùng giọng. Lần đầu khởi động ~1 phút; chưa hỗ trợ [cười] [thở dài]." if _omni_ok()
+    "Song ngữ đọc cả câu tiếng Anh bằng chính giọng Việt đã chọn. Lần đầu mất khoảng 1 phút để khởi động." if _omni_ok()
     else "Song ngữ chưa được cài trên máy này — chạy file \"3. Cai them Song ngu\" (tải ~4 GB) để dùng.")
 
 class H(BaseHTTPRequestHandler):
