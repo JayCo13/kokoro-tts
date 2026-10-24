@@ -167,7 +167,23 @@ def _install_ipa_hook():
     vt.phonemize_text_with_emotions = hooked
 
 PROGRESS = {"text": ""}
-def synth(text, voice, speed=1.0, mood="natural", seed=1, check=False, report=None):
+_omni_lock = threading.Lock()
+def _synth_omni(text, voice, speed, mood, report):
+    import omni
+    m = MOODS.get(mood, MOODS["natural"])
+    def make_ref(t):                                   # mau giong: VieNeu doc 1 cau thuan Viet
+        return synth(t, voice, 1.0, "natural", 1, True)
+    def prog(msg): PROGRESS["text"] = msg
+    with _omni_lock:
+        audio, n = omni.synth(text, voice, make_ref, speed=1.0, progress=prog)
+        PROGRESS["text"] = ""
+    if report is not None: report.update(chunks=n, engine="omni", checked=False, regenerated=0)
+    audio = stretch(audio, 48000, speed * m["speed"], m["pitch"])
+    buf = io.BytesIO(); sf.write(buf, np.asarray(audio, dtype=np.float32), 48000, format="WAV"); return buf.getvalue()
+
+def synth(text, voice, speed=1.0, mood="natural", seed=1, check=False, report=None, engine="vieneu"):
+    if voice in VI_VOICES and engine == "omni":
+        return _synth_omni(text, voice, speed, mood, report)
     if voice in VI_VOICES:
         text = apply_pron(text)
         import entag; text = entag.tag_english(text, load_en_map())   # cum tieng Anh -> <en>..</en> de doc kieu Anh
@@ -234,6 +250,7 @@ button:hover{background:var(--acc2)}button:disabled{opacity:.5;cursor:wait}
 .chip:hover{background:transparent;border-color:var(--acc)}.chip small{color:var(--mut);font-size:11px;font-weight:400}
 .chip .pl{font-size:10px;color:var(--mut)}.chip.sel{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 14%,transparent)}
 .chip.sel .pl{color:var(--acc)}.chip.playing .pl{animation:p .8s infinite alternate}@keyframes p{to{opacity:.2}}
+.chip:disabled{opacity:.45;cursor:not-allowed}
 .chip.loading{opacity:.6;cursor:wait}
 .hint{font-size:13px;color:var(--mut);margin-top:6px}.hint code{font-size:12px}input[type=range]:disabled{opacity:.35}
 summary{cursor:pointer;font-size:14px;color:var(--fg)}
@@ -249,6 +266,10 @@ summary{cursor:pointer;font-size:14px;color:var(--fg)}
 <textarea id="dict" style="min-height:140px;font:13px/1.5 ui-monospace,Menlo,monospace"></textarea>
 <button type="button" id="dsave" style="margin-top:8px;width:auto;padding:8px 16px;font-size:14px">💾 Lưu từ điển</button> <span id="dmsg" class="hint"></span>
 </details>
+<div id="engrow" style="display:none;margin-top:12px"><label>Bộ đọc (giọng Việt)</label><div class="chips">
+<button type="button" class="chip eng" data-e="vieneu">⚡ VieNeu<small>nhanh</small></button>
+<button type="button" class="chip eng" data-e="omni" __OMNI_DIS__>🌏 Song ngữ – OmniVoice<small>tiếng Anh chuẩn, chậm hơn ~5 lần</small></button></div>
+<div class="hint" id="enghint">__OMNI_HINT__</div></div>
 <label id="chkrow" class="hint" style="display:none;margin-top:12px;cursor:pointer"><input type="checkbox" id="chk" checked> 🔍 <b>Kiểm tra kỹ</b>: nghe lại từng đoạn bằng PhoWhisper, đoạn nào đọc lỗi/đọc lướt thì tự đọc lại (chậm hơn một chút)</label>
 <div id="moodrow" style="display:none;margin-top:14px"><label>Tâm trạng (giọng Việt)</label><div class="chips"><button type="button" class="chip mood" data-m="natural">😊 Tự nhiên</button><button type="button" class="chip mood" data-m="lively">🎉 Sôi nổi, vui tươi</button><button type="button" class="chip mood" data-m="calm">🌙 Trầm lắng, nhẹ nhàng</button><button type="button" class="chip mood" data-m="serious">📰 Nghiêm túc, đều giọng</button><button type="button" class="chip mood" data-m="mystery">🕯️ Hồi hộp, bí ẩn</button><button type="button" class="chip mood" data-m="sad">🌧️ Buồn, chậm rãi</button></div></div>
 <label style="margin-top:16px">Giọng <span class="cnt">bấm để nghe thử · đang chọn: <b id="vn">af_heart</b></span></label>
@@ -259,6 +280,7 @@ summary{cursor:pointer;font-size:14px;color:var(--fg)}
 <div id="out"><audio id="a" controls></audio><a id="dl" download="kokoro.wav">⬇ Tải file .wav</a></div>
 </div></div>
 <script>
+var engine="vieneu";
 const $=id=>document.getElementById(id),t=$("t"),b=$("b"),s=$("s");
 const upd=()=>$("cnt").textContent=t.value.length+" ký tự";t.oninput=upd;upd();const EN_T=t.value,VI_T="Xin chào! Đây là giọng đọc tiếng Việt, chạy ngay trên máy của bạn.";
 s.oninput=()=>$("sv").textContent=(+s.value).toFixed(2).replace(/0$/,"")+"×";
@@ -268,8 +290,8 @@ const moods=[...document.querySelectorAll(".mood")];function selm(m){mood=m;mood
 moods.forEach(x=>x.onclick=()=>selm(x.dataset.m));selm(mood);
 fetch("/dict").then(r=>r.text()).then(x=>$("dict").value=x);
 $("dsave").onclick=async()=>{const r=await fetch("/dict",{method:"POST",headers:{"Content-Type":"text/plain; charset=utf-8"},body:$("dict").value});$("dmsg").textContent=r.ok?"Đã lưu "+(await r.text())+" từ ✓":"Lỗi khi lưu"};
-const pv=new Audio(),chips=[...document.querySelectorAll(".chip:not(.mood)")];
-function sel(v){if(!chips.some(c=>c.dataset.v===v))v="af_heart";voice=v;const c0=chips.find(c=>c.dataset.v===v);$("vn").textContent=c0?c0.dataset.n:v;chips.forEach(c=>c.classList.toggle("sel",c.dataset.v===v));try{localStorage.setItem("voice",v)}catch(e){}const vi=v.startsWith("vi_");$("hint").style.display=vi?"block":"none";$("moodrow").style.display=vi?"block":"none";$("chkrow").style.display=vi?"block":"none";$("dictbox").style.display=vi?"block":"none";if(vi&&t.value===EN_T){t.value=VI_T;upd()}else if(!vi&&t.value===VI_T){t.value=EN_T;upd()}}
+const pv=new Audio(),chips=[...document.querySelectorAll(".chip:not(.mood):not(.eng)")];
+function sel(v){if(!chips.some(c=>c.dataset.v===v))v="af_heart";voice=v;const c0=chips.find(c=>c.dataset.v===v);$("vn").textContent=c0?c0.dataset.n:v;chips.forEach(c=>c.classList.toggle("sel",c.dataset.v===v));try{localStorage.setItem("voice",v)}catch(e){}const vi=v.startsWith("vi_");$("hint").style.display=vi?"block":"none";$("moodrow").style.display=vi?"block":"none";$("engrow").style.display=vi?"block":"none";$("chkrow").style.display=vi&&engine!=="omni"?"block":"none";$("dictbox").style.display=vi?"block":"none";if(vi&&t.value===EN_T){t.value=VI_T;upd()}else if(!vi&&t.value===VI_T){t.value=EN_T;upd()}}
 sel(voice);
 pv.onended=pv.onpause=()=>chips.forEach(c=>c.classList.remove("playing"));
 chips.forEach(c=>c.onclick=()=>{sel(c.dataset.v);$("a").pause();pv.pause();
@@ -280,13 +302,18 @@ chips.forEach(c=>c.onclick=()=>{sel(c.dataset.v);$("a").pause();pv.pause();
 let seed=1;try{seed=+localStorage.getItem("seed")||1}catch(e){}$("sd").textContent=seed;
 $("rr").onclick=()=>{seed=1+Math.floor(Math.random()*99999);$("sd").textContent=seed;try{localStorage.setItem("seed",seed)}catch(e){}b.click()};
 try{$("chk").checked=localStorage.getItem("check")!=="0"}catch(e){}
+try{engine=localStorage.getItem("engine")||"vieneu"}catch(e){}
+const engs=[...document.querySelectorAll(".eng")];
+function sele(e){const b=engs.find(x=>x.dataset.e===e);if(!b||b.disabled)e="vieneu";engine=e;engs.forEach(x=>x.classList.toggle("sel",x.dataset.e===e));try{localStorage.setItem("engine",e)}catch(_){}
+ const vi=voice.startsWith("vi_");$("chkrow").style.display=vi&&e!=="omni"?"block":"none";$("dictbox").style.display=vi&&e!=="omni"?"block":"none"}
+engs.forEach(x=>x.onclick=()=>sele(x.dataset.e));sele(engine);
 $("chk").onchange=()=>{try{localStorage.setItem("check",$("chk").checked?"1":"0")}catch(e){}};
 b.onclick=async()=>{if(!t.value.trim())return;b.disabled=true;$("msg").textContent="Đang tạo giọng nói…";const t0=Date.now();
 const poll=setInterval(async()=>{try{const p=await (await fetch("/progress")).json();if(p.text)$("msg").textContent=p.text+" ("+((Date.now()-t0)/1000).toFixed(0)+" giây)"}catch(e){}},1000);
-try{const r=await fetch("/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:t.value,voice:voice,mood:mood,speed:+s.value,seed:seed,check:$("chk").checked})});
+try{const r=await fetch("/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:t.value,voice:voice,mood:mood,speed:+s.value,seed:seed,check:$("chk").checked,engine:engine})});
 if(!r.ok)throw new Error(await r.text());const u=URL.createObjectURL(await r.blob());
 pv.pause();$("a").src=u;$("dl").href=u;$("dl").download=voice+".wav";$("out").style.display="block";$("a").play();
-let extra="";try{const rp=JSON.parse(r.headers.get("X-Report")||"{}");if(rp.chunks){extra=" · "+rp.chunks+" đoạn"+(rp.checked?", đã kiểm tra, đọc lại "+rp.regenerated+" đoạn lỗi":"")}}catch(e){}
+let extra="";try{const rp=JSON.parse(r.headers.get("X-Report")||"{}");if(rp.engine==="omni"){extra=" · song ngữ OmniVoice, "+rp.chunks+" đoạn"}else if(rp.chunks){extra=" · "+rp.chunks+" đoạn"+(rp.checked?", đã kiểm tra, đọc lại "+rp.regenerated+" đoạn lỗi":"")}}catch(e){}
 $("msg").textContent="Xong sau "+((Date.now()-t0)/1000).toFixed(1)+" giây"+extra;}
 catch(e){$("msg").textContent="Lỗi: "+e.message}finally{clearInterval(poll);b.disabled=false}};
 t.onkeydown=e=>{if((e.metaKey||e.ctrlKey)&&e.key==="Enter")b.click()};
@@ -298,6 +325,13 @@ def _version():
     try: return "phiên bản " + open(os.path.join(root, ".version")).read().strip()[:7]
     except Exception: return "phiên bản cài đặt"
 HTML = HTML.replace("__VER__", _version())
+def _omni_ok():
+    try:
+        import omni; return omni.available()
+    except Exception: return False
+HTML = HTML.replace("__OMNI_DIS__", "" if _omni_ok() else "disabled").replace("__OMNI_HINT__",
+    "Song ngữ: giọng Việt bạn chọn được dùng làm mẫu, đọc cả câu tiếng Anh bằng cùng giọng. Lần đầu khởi động ~1 phút; chưa hỗ trợ [cười] [thở dài]." if _omni_ok()
+    else "Song ngữ chưa được cài trên máy này — chạy file \"3. Cai them Song ngu\" (tải ~4 GB) để dùng.")
 
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
@@ -327,9 +361,10 @@ class H(BaseHTTPRequestHandler):
             d = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             voice = d.get("voice", "af_heart"); text = d["text"].strip()
             rpt = {}
-            body = synth(text, voice, float(d.get("speed", 1)), d.get("mood", "natural"), d.get("seed", 1), bool(d.get("check", True)), rpt)
+            body = synth(text, voice, float(d.get("speed", 1)), d.get("mood", "natural"), d.get("seed", 1), bool(d.get("check", True)), rpt,
+                         d.get("engine", "vieneu"))
             self.send_response(200); self.send_header("Content-Type", "audio/wav"); self.send_header("Content-Length", str(len(body)))
-            self.send_header("X-Report", json.dumps({k: rpt.get(k) for k in ("chunks", "checked", "regenerated")}))
+            self.send_header("X-Report", json.dumps({k: rpt.get(k) for k in ("chunks", "checked", "regenerated", "engine")}))
             self.end_headers(); self.wfile.write(body)
         except Exception as e:
             self._send(500, str(e).encode(), "text/plain; charset=utf-8")

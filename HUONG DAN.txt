@@ -32,6 +32,14 @@ TÍNH NĂNG
 - 📖 Từ điển phát âm: sửa từ tiếng Anh bị đọc sai, ví dụ  IELTS = /ˈaɪ ˈɛws/
 - 🔍 Kiểm tra kỹ: tự nghe lại từng đoạn và đọc lại đoạn bị lỗi
 
+BỘ ĐỌC SONG NGỮ (TUỲ CHỌN) – giọng Việt đọc tiếng Anh chuẩn
+  - Chạy thêm 1 lần: "3. Cai them Song ngu (Mac).command" hoặc "3. Cai them Song ngu (Windows).bat"
+    (tải ~4 GB, cần Internet).
+  - Trên giao diện: chọn giọng Việt → Bộ đọc "🌏 Song ngữ – OmniVoice".
+    Giọng Việt bạn chọn được dùng làm mẫu, cả câu tiếng Anh cũng do chính giọng đó đọc.
+  - Chậm hơn VieNeu khoảng 5 lần (Mac chip M); máy Windows không có card NVIDIA sẽ rất chậm.
+  - Chưa hỗ trợ biểu cảm [cười] [thở dài] [hắng giọng], từ điển phát âm và nút kiểm tra kỹ.
+
 GHI CHÚ
 - Lần đầu chọn giọng Việt mất khoảng 15–30 giây để nạp mô hình.
 - Trên Windows không có card NVIDIA, bước "Kiểm tra kỹ" chậm hơn Mac; có thể tắt ô này nếu cần nhanh.

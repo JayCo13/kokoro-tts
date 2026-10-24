@@ -42,6 +42,7 @@ def main():
         print(f"[cap nhat] Tai that bai ({type(e).__name__}) -> dung ban hien tai."); return
 
     old_req = (ROOT / "app/requirements.txt").read_bytes() if (ROOT / "app/requirements.txt").exists() else b""
+    old_omni = (ROOT / "app/requirements-omni.txt").read_bytes() if (ROOT / "app/requirements-omni.txt").exists() else b""
     with tempfile.TemporaryDirectory() as tmp:
         zipfile.ZipFile(io.BytesIO(data)).extractall(tmp)
         src = next(Path(tmp).iterdir())                 # thu muc kokoro-tts-<sha>/
@@ -68,6 +69,12 @@ def main():
                 print("[cap nhat] Cai thu vien loi -> se thu lai lan mo sau."); return
         else:
             print("[cap nhat] Khong tim thay uv -> hay chay lai file '1. Cai dat' de cai thu vien moi."); return
+    omni_py = ROOT / ".venv-omni" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    if omni_py.exists() and (ROOT / "app/requirements-omni.txt").exists() and (ROOT / "app/requirements-omni.txt").read_bytes() != old_omni:
+        uv = _find_uv()
+        if uv:
+            print("[cap nhat] Cap nhat thu vien bo doc song ngu...")
+            subprocess.run([uv, "pip", "install", "--python", str(omni_py), "-r", str(ROOT / "app/requirements-omni.txt")])
     STAMP.write_text(latest)
     print(f"[cap nhat] Da cap nhat len ban {latest[:7]}.")
 

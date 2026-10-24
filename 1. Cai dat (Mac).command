@@ -8,7 +8,7 @@ if [ -z "$UV" ]; then
   UV="$HOME/.local/bin/uv"
 fi
 echo "-> Tao moi truong Python 3.11..."
-"$UV" venv --python 3.11 .venv || { echo "LOI: khong tao duoc moi truong Python"; read -n1; exit 1; }
+"$UV" venv --clear --python 3.11 .venv || { echo "LOI: khong tao duoc moi truong Python"; read -n1; exit 1; }
 echo "-> Cai thu vien (~1 GB, vai phut)..."
 "$UV" pip install --python .venv/bin/python -r app/requirements.txt || { echo "LOI: cai thu vien that bai"; read -n1; exit 1; }
 echo "-> Tai mo hinh (~2 GB)..."

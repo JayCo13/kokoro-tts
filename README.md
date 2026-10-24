@@ -8,6 +8,7 @@ Giao diện web chạy ngay trên máy, không cần Internet sau khi cài:
 - Biểu cảm: `[cười]` `[thở dài]` `[hắng giọng]`
 - 📖 Từ điển phát âm cho từ tiếng Anh (hỗ trợ phiên âm IPA)
 - 🔍 Kiểm tra kỹ: tự nghe lại bằng [PhoWhisper](https://huggingface.co/vinai/PhoWhisper-small) và đọc lại đoạn lỗi
+- 🌏 **Bộ đọc song ngữ (tuỳ chọn)**: giọng Việt đọc tiếng Anh chuẩn bằng [OmniVoice](https://github.com/k2-fsa/OmniVoice), cài bằng file `3. Cai them Song ngu`
 - **Tự cập nhật** từ GitHub mỗi lần mở
 
 ## Cài đặt (macOS chip M / Windows 10-11)

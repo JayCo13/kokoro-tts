@@ -6,3 +6,6 @@ __pycache__/
 app/pronounce.txt
 Day len GitHub.command
 *.log
+.venv-omni/
+app/omni_refs/
+app/omni_worker.log
