@@ -9,3 +9,5 @@ Day len GitHub.command
 .venv-omni/
 app/omni_refs/
 app/omni_worker.log
+app/my_voices/
+app/previews/my_*

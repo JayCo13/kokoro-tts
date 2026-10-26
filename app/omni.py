@@ -70,15 +70,15 @@ def split_chunks(text, max_chars=220):
         if cur: out.append((cur, True))                               # True = het doan van
     return out
 
-def synth(text, voice_key, make_ref, speed=1.0, progress=None):
+def synth(text, voice_key, make_ref, speed=1.0, progress=None, ref=None, ref_text=None):
     import soxr
     ensure_worker(progress)
-    ref = ref_path(voice_key, make_ref)
+    if ref is None: ref, ref_text = ref_path(voice_key, make_ref), REF_TEXT
     chunks = split_chunks(text)
     parts = []
     for i, (c, para_end) in enumerate(chunks):
         if progress: progress(f"Song ngữ: đang đọc đoạn {i + 1}/{len(chunks)}…")
-        body = json.dumps({"text": c, "ref_audio": ref, "ref_text": REF_TEXT, "speed": speed}).encode()
+        body = json.dumps({"text": c, "ref_audio": ref, "ref_text": ref_text, "speed": speed}).encode()
         req = urllib.request.Request(URL + "/tts", data=body, headers={"Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=600) as r:
             w, sr = sf.read(io.BytesIO(r.read()), dtype="float32")

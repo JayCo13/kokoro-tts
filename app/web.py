@@ -79,13 +79,20 @@ def vi_engine():
             import hfcache
             _vi = hfcache.load_vieneu()
             _install_ipa_hook()
+            import myvoices; myvoices.register_all(_vi)          # giong nhan ban cua nguoi dung
     return _vi
 _pipes, _lock = {}, threading.Lock()
 import os
 PREV_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "previews")
 os.makedirs(PREV_DIR, exist_ok=True)
 ALL_VOICES = list(PRESETS) + list(VI_VOICES) + [v for vs in VOICES.values() for v in vs]
-def vname(v): return VI_VOICES[v]["name"] if v in VI_VOICES else PRESETS[v]["name"] if v in PRESETS else v.split("_", 1)[1].capitalize()
+import myvoices
+def _add_mine(m):
+    k = m["key"]
+    VI_VOICES[k] = dict(name=myvoices.vieneu_name(m["id"]), disp=m["name"], g=m["g"], r=m["r"], st="giọng của tôi", pick=0, mine=m)
+    if k not in ALL_VOICES: ALL_VOICES.append(k)
+for _m in myvoices.list_voices(): _add_mine(_m)
+def vname(v): return VI_VOICES[v].get("disp") or VI_VOICES[v]["name"] if v in VI_VOICES else PRESETS[v]["name"] if v in PRESETS else v.split("_", 1)[1].capitalize()
 def spec(v):
     return PRESETS.get(v) or dict(blend=v, lang="b" if v.startswith("b") else "a", pitch=0.0, speed=1.0)
 import re
@@ -178,7 +185,9 @@ def _synth_omni(text, voice, speed, mood, report):
     import entag
     text = re.sub(r"</?en>", "", entag.tag_english(text, load_en_map(), single_only=True))
     with _omni_lock:
-        audio, n = omni.synth(text, voice, make_ref, speed=1.0, progress=prog)
+        mine = VI_VOICES[voice].get("mine")
+        ref = (os.path.join(myvoices.DIR, mine["id"] + ".wav"), mine.get("ref_text") or None) if mine else (None, None)
+        audio, n = omni.synth(text, voice, make_ref, speed=1.0, progress=prog, ref=ref[0], ref_text=ref[1])
         PROGRESS["text"] = ""
     if report is not None: report.update(chunks=n, engine="omni", checked=False, regenerated=0)
     audio = stretch(audio, 48000, speed * m["speed"], m["pitch"])
@@ -224,15 +233,33 @@ def chip(v, label, small, q=""):
 def vi_chip(k):
     d = VI_VOICES[k]
     return chip(k, ("⭐ " if d["pick"] else "") + d["name"], f'{d["g"]} · {d["r"]} · {d["st"]}', d["name"])
+MINE_HTML = """<div class="mine">
+<button type="button" id="newv" class="newv">＋ Tạo giọng mới từ giọng thật</button>
+<form id="newform" class="newform" hidden>
+ <p class="hint">Ghi âm ở nơi yên tĩnh, đọc rõ và tự nhiên câu dưới đây (khoảng 8 giây). Hoặc chọn một file ghi âm 3–10 giây chỉ có một người nói.</p>
+ <blockquote id="sample">Xin chào các bạn, hôm nay mình sẽ kể cho các bạn nghe một câu chuyện rất thú vị về cuộc sống hằng ngày.</blockquote>
+ <div class="recrow"><button type="button" id="recb">● Ghi âm</button><span id="rect" class="hint">tối đa 12 giây</span><label class="filebtn">Chọn file…<input type="file" id="vfile" accept="audio/*" hidden></label></div>
+ <audio id="vprev" controls hidden></audio>
+ <label class="fld">Tên giọng<input id="vname" maxlength="40" placeholder="Ví dụ: Giọng của Tài"></label>
+ <div class="row2"><label class="fld">Giới tính<select id="vg"><option>Nam</option><option>Nữ</option></select></label>
+ <label class="fld">Vùng miền<select id="vr"><option>Bắc</option><option>Trung</option><option>Nam</option></select></label></div>
+ <label class="check"><input type="checkbox" id="vok"><span>Đây là giọng của tôi, hoặc tôi đã được người đó đồng ý cho dùng giọng.</span></label>
+ <div class="recrow"><button type="submit" id="vsave">Tạo giọng</button><button type="button" id="vcancel" class="linkbtn">Huỷ</button></div>
+ <div id="vmsg" class="hint" aria-live="polite"></div>
+</form>
+<div id="mylist" class="vlist"></div>
+<p id="myempty" class="hint">Chưa có giọng nào. Bấm “Tạo giọng mới” để nhân bản giọng của bạn.</p>
+</div>"""
 def _grp(title, inner):
     return f'<div class="grp"><h3 class="gl">{title}</h3><div class="vlist">{inner}</div></div>'
 opts = ('<div class="tabp" data-tab="vi">'
-        + "".join(_grp(f"Giọng {g.lower()}", "".join(vi_chip(k) for k, d in VI_VOICES.items() if d["g"] == g)) for g in ("Nam", "Nữ"))
+        + "".join(_grp(f"Giọng {g.lower()}", "".join(vi_chip(k) for k, d in VI_VOICES.items() if d["g"] == g and not d.get("mine"))) for g in ("Nam", "Nữ"))
         + '</div><div class="tabp" data-tab="en" hidden>'
         + "".join(_grp(g, "".join(chip(v, vname(v), v) for v in vs)) for g, vs in VOICES.items())
         + '</div><div class="tabp" data-tab="story" hidden>'
         + _grp("Giọng nam trầm cho truyện trinh thám", "".join(chip(k, p["name"], p["desc"]) for k, p in PRESETS.items()))
-        + '</div>')
+        + '</div><div class="tabp" data-tab="mine" hidden>'
+        + MINE_HTML + '</div>')
 
 HTML = """<!doctype html><html lang="vi"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Giọng đọc AI</title>
@@ -254,7 +281,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .top h1{font-size:17px;font-weight:700;margin:0;letter-spacing:-.01em}
 .top .ver{font-size:12px;color:var(--mut)}
 .top .tagline{margin-left:auto;font-size:13px;color:var(--mut)}
-.sheet{flex:1;min-height:0;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.sheet{flex:1;min-height:240px;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
 #t{flex:1;min-height:0;width:100%;resize:none;border:0;background:transparent;padding:26px 30px;font-size:19px;line-height:1.75;max-width:none}
 #t:focus{outline:none}.sheet:focus-within{border-color:var(--acc)}
 .tools{display:flex;align-items:center;gap:8px;padding:10px 16px;border-top:1px solid var(--line);font-size:13px;color:var(--mut);flex-wrap:wrap}
@@ -295,7 +322,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 .vrow.sel{background:color-mix(in srgb,var(--acc) 13%,transparent)}.vrow.sel .pl{background:var(--acc);border-color:var(--acc);color:var(--acc-ink)}
 .vrow.playing .pl{animation:rec .6s infinite alternate}.vrow.loading{opacity:.6;cursor:wait}
 .vrow[hidden]{display:none}
-.settings{display:grid;grid-template-columns:auto minmax(160px,220px) minmax(0,1fr) auto;gap:10px 22px;align-items:start;padding:14px 4px 4px}
+.settings{display:grid;grid-template-columns:minmax(0,300px) minmax(150px,200px) minmax(0,1fr);gap:12px 24px;align-items:start;padding:14px 4px 4px}
+#chkrow{grid-column:1/-1}#chkrow>label{justify-content:flex-start;font-weight:400;margin:0}#chkrow .hint{display:inline;margin:0 0 0 6px}#chkrow br{display:none}
 .set{min-width:0}
 .dictwrap{border-top:1px solid var(--line);padding:10px 20px 14px;max-height:55%;overflow:auto}
 .set>label,.set .lbl{display:flex;justify-content:space-between;gap:8px;font-size:13px;font-weight:600;margin-bottom:8px}
@@ -313,6 +341,26 @@ details summary{cursor:pointer;font-size:13px;font-weight:600}
 #dict{width:100%;min-height:150px;margin-top:8px;border:1px solid var(--line);border-radius:9px;padding:9px;background:transparent;font:12.5px/1.55 ui-monospace,Menlo,monospace}
 #dsave{margin-top:8px;border:1px solid var(--acc);color:var(--acc);background:transparent;border-radius:9px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer}
 /* ---- man hinh nho ---- */
+.mine{padding:8px 4px}
+.newv{width:100%;border:1px dashed var(--acc);color:var(--acc);background:transparent;border-radius:10px;padding:10px;font-weight:600;cursor:pointer}
+.newv:hover{background:color-mix(in srgb,var(--acc) 10%,transparent)}
+.newform{margin:12px 0;padding:14px;border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;gap:10px}
+.newform[hidden]{display:none}
+#sample{margin:0;padding:10px 12px;border-left:3px solid var(--acc);background:var(--soft);border-radius:0 8px 8px 0;font-size:15px;line-height:1.6}
+.recrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#recb{border:1px solid var(--rec);color:var(--rec);background:transparent;border-radius:999px;padding:6px 14px;font-weight:600;cursor:pointer}
+#recb.on{background:var(--rec);color:#fff}
+.filebtn{border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:13px;cursor:pointer;margin-left:auto}
+.filebtn:hover{border-color:var(--acc)}
+#vprev{width:100%;height:36px}#vprev[hidden]{display:none}
+.fld{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--mut);flex:1}
+.fld input,.fld select{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--panel);font-size:14px;font-weight:400;color:var(--ink)}
+.row2{display:flex;gap:10px}
+#vsave{background:var(--acc);color:var(--acc-ink);border:0;border-radius:10px;padding:9px 18px;font-weight:600;cursor:pointer}#vsave:disabled{opacity:.5;cursor:wait}
+.linkbtn{border:0;background:transparent;color:var(--mut);cursor:pointer;text-decoration:underline}
+.myrow{display:flex;align-items:center;gap:4px}.myrow .vrow{flex:1}
+.del{border:0;background:transparent;color:var(--mut);border-radius:8px;width:30px;height:30px;cursor:pointer;flex:none}
+.del:hover{color:var(--rec);background:var(--soft)}
 @media (max-width:900px){
  .app{display:block;height:auto}
  .script{padding:14px 14px 0}.top .tagline{display:none}
@@ -355,7 +403,7 @@ details summary{cursor:pointer;font-size:13px;font-weight:600}
  <div class="side-head">
   <h2>Giọng đọc</h2>
   <p class="cur">Đang chọn <b id="vn">af_heart</b>. Bấm vào giọng để nghe thử.</p>
-  <div class="tabs" role="tablist"><button role="tab" data-t="vi" aria-selected="true">Tiếng Việt</button><button role="tab" data-t="en" aria-selected="false">Tiếng Anh</button><button role="tab" data-t="story" aria-selected="false">Kể chuyện</button></div>
+  <div class="tabs" role="tablist"><button role="tab" data-t="vi" aria-selected="true">Tiếng Việt</button><button role="tab" data-t="en" aria-selected="false">Tiếng Anh</button><button role="tab" data-t="story" aria-selected="false">Kể chuyện</button><button role="tab" data-t="mine" aria-selected="false">Của tôi</button></div>
   <input id="q" type="search" placeholder="Tìm giọng: tên, Bắc, nữ, kể chuyện…" aria-label="Tìm giọng">
  </div>
  <div class="side-body" id="voices">__OPTS__</div>
@@ -377,7 +425,7 @@ const moods=[...document.querySelectorAll(".mood")];function selm(m){mood=m;mood
 moods.forEach(x=>x.onclick=()=>selm(x.dataset.m));selm(mood);
 fetch("/dict").then(r=>r.text()).then(x=>$("dict").value=x);
 $("dsave").onclick=async()=>{const r=await fetch("/dict",{method:"POST",headers:{"Content-Type":"text/plain; charset=utf-8"},body:$("dict").value});$("dmsg").textContent=r.ok?"Đã lưu "+(await r.text())+" từ":"Lưu không được, thử lại"};
-const pv=new Audio(),chips=[...document.querySelectorAll(".chip:not(.mood):not(.eng)")];
+const pv=new Audio();let chips=[...document.querySelectorAll(".vrow")];
 /* tab + tim kiem giong */
 const tabs=[...document.querySelectorAll(".tabs button")],panes=[...document.querySelectorAll(".tabp")];
 function showTab(k){tabs.forEach(x=>x.setAttribute("aria-selected",x.dataset.t===k));panes.forEach(p=>p.hidden=p.dataset.tab!==k&&!$("q").value.trim());try{localStorage.setItem("tab",k)}catch(e){}}
@@ -386,15 +434,49 @@ function filt(){const q=$("q").value.trim().toLowerCase();chips.forEach(c=>c.hid
  document.querySelectorAll(".grp").forEach(g=>g.hidden=![...g.querySelectorAll(".vrow")].some(c=>!c.hidden));
  if(q)panes.forEach(p=>p.hidden=false);else{const cur=tabs.find(x=>x.getAttribute("aria-selected")==="true");showTab(cur?cur.dataset.t:"vi")}}
 $("q").oninput=filt;
-function tabOf(v){return v.startsWith("vi_")?"vi":v.startsWith("x_")?"story":"en"}
-function sel(v){if(!chips.some(c=>c.dataset.v===v))v="af_heart";voice=v;const c0=chips.find(c=>c.dataset.v===v);$("vn").textContent=c0?c0.dataset.n:v;chips.forEach(c=>c.classList.toggle("sel",c.dataset.v===v));try{localStorage.setItem("voice",v)}catch(e){}const vi=v.startsWith("vi_");$("hint").style.display=vi?"flex":"none";$("moodrow").style.display=vi?"block":"none";$("engrow").style.display=vi?"block":"none";$("chkrow").style.display=vi&&engine!=="omni"?"block":"none";$("dictbox").style.display=vi&&engine!=="omni"?"block":"none";if(vi&&t.value===EN_T){t.value=VI_T;upd()}else if(!vi&&t.value===VI_T){t.value=EN_T;upd()}}
-sel(voice);showTab(tabOf(voice));
+function tabOf(v){return v.startsWith("my_")?"mine":v.startsWith("vi_")?"vi":v.startsWith("x_")?"story":"en"}
+function sel(v){if(!chips.some(c=>c.dataset.v===v))v="af_heart";voice=v;const c0=chips.find(c=>c.dataset.v===v);$("vn").textContent=c0?c0.dataset.n:v;chips.forEach(c=>c.classList.toggle("sel",c.dataset.v===v));try{localStorage.setItem("voice",v)}catch(e){}const vi=v.startsWith("vi_")||v.startsWith("my_");$("hint").style.display=vi?"flex":"none";$("moodrow").style.display=vi?"block":"none";$("engrow").style.display=vi?"block":"none";$("chkrow").style.display=vi&&engine!=="omni"?"block":"none";$("dictbox").style.display=vi&&engine!=="omni"?"block":"none";if(vi&&t.value===EN_T){t.value=VI_T;upd()}else if(!vi&&t.value===VI_T){t.value=EN_T;upd()}}
 pv.onended=pv.onpause=()=>chips.forEach(c=>c.classList.remove("playing"));
-chips.forEach(c=>c.onclick=()=>{sel(c.dataset.v);$("a").pause();pv.pause();
+function playPrev(c){sel(c.dataset.v);$("a").pause();pv.pause();
  c.classList.add("loading");pv.src="/preview/"+c.dataset.v;
  pv.oncanplay=()=>{c.classList.remove("loading");c.classList.add("playing")};
  pv.onerror=()=>{c.classList.remove("loading");$("msg").textContent="Không phát được bản nghe thử"};
- pv.play().catch(()=>{});});
+ pv.play().catch(()=>{})}
+function bindChips(){chips=[...document.querySelectorAll(".vrow")];chips.forEach(c=>c.onclick=()=>playPrev(c))}
+/* giong cua toi */
+const esc=x=>String(x).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+async function loadMine(){let list=[];try{list=await (await fetch("/myvoices")).json()}catch(e){}
+ $("mylist").innerHTML=list.map(m=>`<div class="myrow"><button type="button" class="chip vrow" data-v="${esc(m.key)}" data-n="${esc(m.name)}" data-q="${esc((m.name+" "+m.g+" "+m.r+" giọng của tôi").toLowerCase())}"><span class="pl" aria-hidden="true">▶</span><span class="vname">${esc(m.name)}</span><small>${esc(m.g)} · ${esc(m.r)} · giọng của tôi · ${m.seconds||""} giây mẫu</small></button><button type="button" class="del" data-k="${esc(m.key)}" data-n="${esc(m.name)}" title="Xoá giọng ${esc(m.name)}" aria-label="Xoá giọng ${esc(m.name)}">✕</button></div>`).join("");
+ $("myempty").hidden=list.length>0;
+ document.querySelectorAll(".del").forEach(x=>x.onclick=async()=>{if(!x.dataset.armed){x.dataset.armed=1;x.textContent="Xoá?";setTimeout(()=>{delete x.dataset.armed;x.textContent="✕"},3000);return}
+  const r=await fetch("/myvoices/delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({key:x.dataset.k})});
+  if(r.ok){if(voice===x.dataset.k)voice="vi_hai_dang";await loadMine();sel(voice)}});
+ bindChips()}
+let recBlob=null,mr=null,recT=null;
+function setBlob(b){recBlob=b;$("vprev").src=URL.createObjectURL(b);$("vprev").hidden=false}
+$("newv").onclick=()=>{$("newform").hidden=!$("newform").hidden;if(!$("newform").hidden)$("vname").focus()};
+$("vcancel").onclick=()=>{$("newform").hidden=true};
+$("vfile").onchange=()=>{const f=$("vfile").files[0];if(f){setBlob(f);$("rect").textContent=f.name}};
+$("recb").onclick=async()=>{if(mr&&mr.state==="recording"){mr.stop();return}
+ try{const st=await navigator.mediaDevices.getUserMedia({audio:true});const parts=[];mr=new MediaRecorder(st);
+  mr.ondataavailable=e=>parts.push(e.data);
+  mr.onstop=()=>{st.getTracks().forEach(t=>t.stop());clearInterval(recT);$("recb").classList.remove("on");$("recb").textContent="● Ghi lại";setBlob(new Blob(parts,{type:mr.mimeType}))};
+  mr.start();const t0=Date.now();$("recb").classList.add("on");$("recb").textContent="■ Dừng";
+  recT=setInterval(()=>{const sec=(Date.now()-t0)/1000;$("rect").textContent="Đang ghi "+sec.toFixed(0)+" giây";if(sec>=12)mr.stop()},250);
+ }catch(e){$("vmsg").textContent="Không mở được micro. Hãy cho phép trình duyệt dùng micro, hoặc chọn file ghi âm."}};
+$("newform").onsubmit=async e=>{e.preventDefault();
+ if(!recBlob){$("vmsg").textContent="Hãy ghi âm hoặc chọn một file trước.";return}
+ if(!$("vname").value.trim()){$("vmsg").textContent="Hãy đặt tên cho giọng.";$("vname").focus();return}
+ if(!$("vok").checked){$("vmsg").textContent="Hãy xác nhận bạn có quyền dùng giọng này.";return}
+ $("vsave").disabled=true;$("vmsg").textContent="Đang tạo giọng, khoảng 10–30 giây…";
+ try{const data=await new Promise((ok,no)=>{const fr=new FileReader();fr.onload=()=>ok(fr.result);fr.onerror=no;fr.readAsDataURL(recBlob)});
+  const r=await fetch("/myvoices",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({audio:data,name:$("vname").value,g:$("vg").value,r:$("vr").value})});
+  if(!r.ok)throw new Error(await r.text());const m=await r.json();
+  $("vmsg").textContent="Đã tạo giọng "+m.name+".";$("newform").reset();recBlob=null;$("vprev").hidden=true;$("rect").textContent="tối đa 12 giây";$("newform").hidden=true;
+  await loadMine();const c=chips.find(x=>x.dataset.v===m.key);if(c)playPrev(c)}
+ catch(err){$("vmsg").textContent=err.message}finally{$("vsave").disabled=false}};
+bindChips();
+loadMine().then(()=>{sel(voice);showTab(tabOf(voice))});
 /* chen bieu cam tai con tro */
 document.querySelectorAll(".tag").forEach(x=>x.onclick=()=>{const a=t.selectionStart,z=t.selectionEnd,ins=" "+x.dataset.ins+" ";t.setRangeText(ins,a,z,"end");t.focus();upd()});
 let seed=1;try{seed=+localStorage.getItem("seed")||1}catch(e){}$("sd").textContent=seed;
@@ -403,7 +485,7 @@ try{$("chk").checked=localStorage.getItem("check")!=="0"}catch(e){}
 try{engine=localStorage.getItem("engine")||"vieneu"}catch(e){}
 const engs=[...document.querySelectorAll(".eng")];
 function sele(e){const bb=engs.find(x=>x.dataset.e===e);if(!bb||bb.disabled)e="vieneu";engine=e;engs.forEach(x=>x.classList.toggle("sel",x.dataset.e===e));try{localStorage.setItem("engine",e)}catch(_){}
- const vi=voice.startsWith("vi_");$("chkrow").style.display=vi&&e!=="omni"?"block":"none";$("dictbox").style.display=vi&&e!=="omni"?"block":"none"}
+ const vi=voice.startsWith("vi_")||voice.startsWith("my_");$("chkrow").style.display=vi&&e!=="omni"?"block":"none";$("dictbox").style.display=vi&&e!=="omni"?"block":"none"}
 engs.forEach(x=>x.onclick=()=>sele(x.dataset.e));sele(engine);
 $("chk").onchange=()=>{try{localStorage.setItem("check",$("chk").checked?"1":"0")}catch(e){}};
 b.onclick=async()=>{if(!t.value.trim()){$("msg").textContent="Gõ hoặc dán văn bản vào ô bên trái trước đã.";t.focus();return}
@@ -438,6 +520,8 @@ class H(BaseHTTPRequestHandler):
         self.send_response(code); self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
     def do_GET(self):
+        if self.path == "/myvoices":
+            return self._send(200, json.dumps(myvoices.list_voices(), ensure_ascii=False).encode(), "application/json; charset=utf-8")
         if self.path == "/progress":
             return self._send(200, json.dumps(PROGRESS, ensure_ascii=False).encode(), "application/json; charset=utf-8")
         if self.path == "/dict":
@@ -455,6 +539,36 @@ class H(BaseHTTPRequestHandler):
             data = self.rfile.read(int(self.headers["Content-Length"])).decode("utf-8")
             open(PRON_FILE, "w", encoding="utf-8").write(data)
             return self._send(200, f"{len(load_pron())}".encode(), "text/plain")
+        if self.path in ("/myvoices", "/myvoices/delete"):
+            try:
+                d = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                if self.path == "/myvoices/delete":
+                    k = d.get("key", ""); m = VI_VOICES.get(k, {}).get("mine")
+                    if not m: return self._send(404, "Không tìm thấy giọng".encode(), "text/plain; charset=utf-8")
+                    myvoices.delete(m["id"], _vi)
+                    VI_VOICES.pop(k, None)
+                    if k in ALL_VOICES: ALL_VOICES.remove(k)
+                    pf = os.path.join(PREV_DIR, k + ".wav")
+                    if os.path.exists(pf): os.remove(pf)
+                    return self._send(200, b"ok", "text/plain")
+                import base64
+                raw = base64.b64decode(d["audio"].split(",", 1)[-1])
+                tr = None
+                try:
+                    import checker
+                    if checker.available(): tr = checker.transcribe
+                except Exception: tr = None
+                eng = vi_engine()
+                with _vi_lock:
+                    PROGRESS["text"] = "Đang tạo giọng mới…"
+                    try: meta = myvoices.create(raw, d.get("name"), d.get("g"), d.get("r"), FFMPEG, eng, tr)
+                    finally: PROGRESS["text"] = ""
+                _add_mine(meta)
+                return self._send(200, json.dumps(meta, ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            except ValueError as e:
+                return self._send(400, str(e).encode(), "text/plain; charset=utf-8")
+            except Exception as e:
+                return self._send(500, ("Lỗi khi tạo giọng: " + str(e)).encode(), "text/plain; charset=utf-8")
         if self.path != "/tts": return self._send(404, b"not found", "text/plain")
         try:
             d = json.loads(self.rfile.read(int(self.headers["Content-Length"])))

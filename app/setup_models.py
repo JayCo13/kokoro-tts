@@ -19,6 +19,7 @@ step(2, "Tai mo hinh giong Viet (VieNeu-TTS v3 Turbo, ~0,6 GB)...")
 import hfcache
 eng = hfcache.load_vieneu()
 eng.infer("Xin chào, cài đặt thành công.", voice="Hải Đăng")
+import myvoices; myvoices.ensure_clone_files()   # file cho chuc nang nhan ban giong
 hfcache.fix_symlinks()
 print("   OK")
 
